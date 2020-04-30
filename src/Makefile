@@ -4,6 +4,10 @@ SUBDIR= nvidia
 SUBDIR+= nvidia-modeset
 .endif
 
+.if exists(nvidia-drm)
+SUBDIR+= nvidia-drm
+.endif
+
 setup:  install
 
 .include <bsd.subdir.mk>

@@ -27,6 +27,8 @@
 #include <sys/file.h>
 #include <sys/proc.h>
 #include <sys/stack.h>
+#include <sys/queue.h>
+#include <sys/mutex.h>
 
 #include "nvkms-ioctl.h"
 #include "nvidia-modeset-os-interface.h"
@@ -95,6 +97,10 @@ struct nvkms_per_open {
         uint32_t available;
         struct selinfo select;
     } events;
+    struct {
+	    struct mtx lock;
+	    struct task task;
+    } tasks;
 };
 
 
@@ -714,11 +720,13 @@ struct nvkms_per_open* nvkms_open_from_kapi
     struct NvKmsKapiDevice *device
 )
 {
-    return NULL;
+    int status = 0;
+    return nvkms_open_common(NVKMS_CLIENT_KERNEL_SPACE, device, &status);
 }
 
 void nvkms_close_from_kapi(struct nvkms_per_open *popen)
 {
+    nvkms_close_common(popen);
 }
 
 NvBool nvkms_ioctl_from_kapi
@@ -727,7 +735,9 @@ NvBool nvkms_ioctl_from_kapi
     NvU32 cmd, void *params_address, const size_t params_size
 )
 {
-    return NV_FALSE;
+    return nvkms_ioctl_common(popen,
+                              cmd,
+                              (NvU64)(NvUPtr)params_address, params_size) == 0;
 }
 
 
@@ -737,19 +747,40 @@ NvBool nvkms_ioctl_from_kapi
 
 nvkms_sema_handle_t* nvkms_sema_alloc(void)
 {
-    return NULL;
+    nvkms_sema_handle_t *sema = nvkms_alloc(sizeof(nvkms_sema_handle_t), NV_TRUE);
+    if (sema) {
+	    printf("nvkms_sema_alloc: creating mutex\n");
+	    mtx_init(&(sema->nvs_mutex), "NVIDIA Mutex", NULL, MTX_DEF);
+    }
+    return sema;
 }
 
 void nvkms_sema_free(nvkms_sema_handle_t *sema)
 {
+    mtx_destroy(&sema->nvs_mutex);
+    nvkms_free(sema, sizeof(*sema));
 }
 
 void nvkms_sema_down(nvkms_sema_handle_t *seam)
 {
+    mtx_lock(&sema->nvs_mutex);
 }
 
 void nvkms_sema_up(nvkms_sema_handle_t *sema)
 {
+    mtx_unlock(&sema->nvs_mutex);
+}
+
+/*************************************************************************
+ * NVKMS KAPI functions
+ ************************************************************************/
+
+NvBool NVKMS_KAPI_CALL nvKmsKapiGetFunctionsTable
+(
+    struct NvKmsKapiFunctionsTable *funcsTable
+)
+{
+    return nvKmsKapiGetFunctionsTableInternal(funcsTable);
 }
 
 /*************************************************************************
@@ -1131,6 +1162,8 @@ DECLARE_MODULE(nvidia_modeset,              /* module name */
                nvidia_modeset_moduledata,   /* moduledata_t */
                SI_SUB_DRIVERS,              /* subsystem */
                SI_ORDER_ANY);               /* initialization order */
+
+MODULE_VERSION(nvidia_modeset, 1);
 
 MODULE_DEPEND(nvidia_modeset,               /* module name */
               nvidia,                       /* prerequisite module */

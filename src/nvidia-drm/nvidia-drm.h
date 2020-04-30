@@ -25,6 +25,53 @@
 
 #include "nvidia-drm-conftest.h"
 
+/*
+ * FreeBSD specific variables:
+ *
+ *  Turn on NV_DRM_AVAILABLE to enable the entire module
+ */
+#ifndef __linux__
+
+/* linuxkpi specific includes */
+#include <linux/device.h>
+#include <linux/vmalloc.h>
+
+#include "nv-pci-table.h"
+
+int nv_drm_bsd_probe(struct pci_dev *dev,
+			    const struct pci_device_id *ent);
+
+extern struct pci_driver nv_drm_pci_driver;
+
+#include <cpufunc.h> /* sfence support */
+
+/* prototypes for non-static functions */
+void *nv_drm_calloc(size_t, size_t);
+void nv_drm_free(void *);
+char *nv_drm_asprintf(const char *, ...);
+void nv_drm_write_combine_flush(void);
+int nv_drm_lock_user_pages(unsigned long,
+                           unsigned long, struct page ***);
+void nv_drm_unlock_user_pages(unsigned long , struct page **);
+void *nv_drm_vmap(struct page **, unsigned long);
+void nv_drm_vunmap(void *);
+uint64_t nv_drm_get_time_usec(void);
+void nv_drm_update_drm_driver_features(void);
+
+/* devclass for linux_pci_register_drm_driver */
+extern devclass_t nv_drm_devclass;
+
+/* 
+ * linuxkpi vmap doesn't use the flags argument as it
+ * doesn't seem to be needed. Define VM_USERMAP to 0
+ * to make errors go away
+ *
+ * vmap: sys/compat/linuxkpi/common/src/linux_compat.c
+ */
+#define VM_USERMAP 0
+
+#endif /* __linux__ */
+
 int nv_drm_init(void);
 void nv_drm_exit(void);
 

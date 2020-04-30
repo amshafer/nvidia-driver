@@ -22,6 +22,11 @@
 
 #include "nvidia-drm-conftest.h" /* NV_DRM_AVAILABLE and NV_DRM_DRM_GEM_H_PRESENT */
 
+#ifndef __linux__
+#include "nvidia-drm.h"
+#include <drm/drm.h>
+#endif
+
 #include "nvidia-drm-priv.h"
 #include "nvidia-drm-drv.h"
 #include "nvidia-drm-fb.h"
@@ -860,7 +865,11 @@ static struct drm_driver nv_drm_driver = {
  * kernel supports atomic modeset and the 'modeset' kernel module
  * parameter is true.
  */
+#ifdef __linux__
 static void nv_drm_update_drm_driver_features(void)
+#else
+void nv_drm_update_drm_driver_features(void)
+#endif
 {
 #if defined(NV_DRM_ATOMIC_MODESET_AVAILABLE)
 
@@ -884,7 +893,11 @@ static void nv_drm_update_drm_driver_features(void)
 /*
  * Helper function for allocate/register DRM device for given NVIDIA GPU ID.
  */
+#ifdef __linux__
 static void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
+#else
+void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
+#endif
 {
     struct nv_drm_device *nv_dev = NULL;
     struct drm_device *dev = NULL;

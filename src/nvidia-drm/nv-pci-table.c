@@ -13,6 +13,12 @@
 
 #include "nv-pci-table.h"
 
+#ifndef __linux__
+#define PCI_VENDOR_ID_NVIDIA 0x10de
+#define PCI_CLASS_DISPLAY_3D 0x0302
+#define PCI_CLASS_MULTIMEDIA_OTHER 0x0480
+#endif
+
 struct pci_device_id nv_pci_table[] = {
     {
         .vendor      = PCI_VENDOR_ID_NVIDIA,
@@ -34,3 +40,6 @@ struct pci_device_id nv_pci_table[] = {
 };
 
 MODULE_DEVICE_TABLE(pci, nv_pci_table);
+#ifndef __linux__
+LKPI_PNP_INFO(pci, nvidia_drm, nv_pci_table);
+#endif

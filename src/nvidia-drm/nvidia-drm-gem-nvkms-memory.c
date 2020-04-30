@@ -254,7 +254,11 @@ int nv_drm_dumb_create(
         ret = -ENOMEM;
         NV_DRM_DEV_LOG_ERR(
             nv_dev,
-            "Failed to allocate NvKmsKapiMemory for dumb object of size %llu",
+#ifdef __linux__
+	    "Failed to allocate NvKmsKapiMemory for dumb object of size %llu",
+#else
+	    "Failed to allocate NvKmsKapiMemory for dumb object of size %lu",
+#endif
             args->size);
         goto nvkms_alloc_memory_failed;
     }
@@ -273,6 +277,26 @@ int nv_drm_dumb_create(
                            &nv_gem_nvkms_memory_ops,
                            args->size,
                            pMemory);
+
+#ifndef __linux__
+    /*
+     * register the pages with the vm system
+     * These pages will be used to back
+     * fault requests. Pages are registered
+     * as PG_FICTITIOUS to signify device
+     * mapped memory
+     */
+    vm_paddr_t start = (vm_paddr_t)nv_nvkms_memory->pPhysicalAddress;
+    vm_paddr_t end = start + args->size;
+    NV_DRM_LOG_INFO("nv_drm_dumb_create: at 0x%jx with size 0x%lx.\n", start, end);
+    
+    ret = vm_phys_fictitious_reg_range(start, end, VM_MEMATTR_WRITE_COMBINING);
+    if (ret) {
+	    NV_DRM_LOG_INFO("Failed to register fictitious range 0x%jx-0x%lx (error = %d).\n",
+			    start, end, ret);
+	    goto nvkms_map_memory_failed;
+    }
+#endif
 
     return nv_drm_gem_handle_create_drop_reference(file_priv,
                                                    &nv_nvkms_memory->base,

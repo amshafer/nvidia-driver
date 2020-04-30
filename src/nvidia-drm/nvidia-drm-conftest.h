@@ -22,6 +22,10 @@
 
 #ifndef __NVIDIA_DRM_CONFTEST_H__
 #define __NVIDIA_DRM_CONFTEST_H__
+/*
+ * do not use any of this on FreeBSD.
+ */
+#ifdef __linux__
 
 #include "conftest.h"
 
@@ -60,5 +64,48 @@
 #else
 #undef NV_DRM_FENCE_AVAILABLE
 #endif
+
+#else
+
+/* drm includes */
+#include <drm/drm_gem.h>
+#include <drm/drm_encoder.h>
+#include <linux/idr.h>
+#include <drm/drm_auth.h>
+#define NV_VM_FAULT_PRESENT
+#include "nv-mm.h"
+#include <linux/mm.h>
+
+#include <linux/list.h>
+/* redefine LIST_HEAD_INIT to the linux version */
+#define LIST_HEAD_INIT(name) LINUX_LIST_HEAD_INIT(name)
+
+/*
+ * FreeBSD specific
+ *
+ * We don't want to use conftest.sh so we will just manually
+ * enable everything thats available.
+ */
+#define NV_DRM_AVAILABLE
+#define NV_DRM_ATOMIC_MODESET_AVAILABLE
+//#define NV_DRM_ATOMIC_MODESET_NONBLOCKING_COMMIT_AVAILABLE
+#define NV_DRM_DEV_UNREF_PRESENT
+#define NV_DRM_ATOMIC_HELPER_SET_CONFIG_PRESENT
+#define NV_DRM_ATOMIC_HELPER_SET_CONFIG_HAS_CTX_ARG
+#define NV_DRM_MODE_OBJECT_FIND_HAS_FILE_PRIV_ARG
+#define NV_DRM_CONNECTOR_FUNCS_HAVE_MODE_IN_NAME
+#define NV_DRM_GEM_OBJECT_LOOKUP_PRESENT
+#define	NV_DRM_GEM_OBJECT_LOOKUP_ARGUMENT_COUNT 2
+#define NV_DRM_CRTC_HELPER_FUNCS_HAS_ATOMIC_ENABLE
+#define NV_DRM_UNIVERSAL_PLANE_INIT_HAS_FORMAT_MODIFIERS_ARG
+#define NV_DRM_UNIVERSAL_PLANE_INIT_HAS_NAME_ARG
+#define NV_DRM_ATOMIC_MODESET_NONBLOCKING_COMMIT_AVAILABLE
+#define NV_DRM_CRTC_INIT_WITH_PLANES_HAS_NAME_ARG
+#define NV_DRM_HELPER_MODE_FILL_FB_STRUCT_HAS_CONST_MODE_CMD_ARG
+#define NV_DRM_DRIVER_HAS_LEGACY_DEV_LIST
+#define NV_DRM_ENCODER_INIT_HAS_NAME_ARG
+#define NV_DRM_HELPER_MODE_FILL_FB_STRUCT_HAS_DEV_ARG
+
+#endif /* defined(__linux__) */
 
 #endif /* defined(__NVIDIA_DRM_CONFTEST_H__) */
