@@ -26,7 +26,7 @@
  * include the FreeBSD structures (nvidia_softc)
  *  have to grab it from src/nvidia/nv-freebsd.h
  */
-#include "../nvidia/nv-misc.h"
+#include "nv-misc.h"
 #include "../nvidia/os-interface.h"
 #define NVRM
 #include "../nvidia/nv.h"
@@ -287,7 +287,7 @@ int nv_drm_bsd_probe(struct pci_dev *dev,
 	NV_DRM_LOG_INFO("nv = 0x%lx", (unsigned long)nv);
 	NV_DRM_LOG_INFO("nv->gpu_id = 0x%lx", (unsigned long)nv->gpu_id);
 	gpu_info.gpu_id = nv->gpu_id;
-	gpu_info.os_dev_ptr = dev;
+	gpu_info.os_device_ptr = dev;
 	
 	nv_drm_register_drm_device(&gpu_info);
 

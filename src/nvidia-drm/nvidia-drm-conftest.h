@@ -68,17 +68,36 @@
 #else
 
 /* drm includes */
+#include <sys/types.h>
+#include <linux/rbtree.h>
 #include <drm/drm_gem.h>
+
+/*
+ * sys/nv.h and nvidia/nv.h have the same header guard
+ * we need to clear it for nvlist_t  to get loaded
+ */
+#undef _NV_H_
+#include <sys/nv.h>
 #include <drm/drm_encoder.h>
+
 #include <linux/idr.h>
 #include <drm/drm_auth.h>
-#define NV_VM_FAULT_PRESENT
+#define NV_VM_FAULT_T_IS_PRESENT
+#define NV_GET_USER_PAGES_REMOTE_PRESENT
 #include "nv-mm.h"
 #include <linux/mm.h>
+#include <vm/vm_phys.h>
 
 #include <linux/list.h>
 /* redefine LIST_HEAD_INIT to the linux version */
 #define LIST_HEAD_INIT(name) LINUX_LIST_HEAD_INIT(name)
+
+/*
+ * For now just use set_page_dirty as the lock variant
+ * is not ported for FreeBSD. (in progress). This calls
+ * vm_page_dirty
+ */
+#define set_page_dirty_lock set_page_dirty
 
 /*
  * FreeBSD specific
@@ -89,11 +108,21 @@
 #define NV_DRM_AVAILABLE
 #define NV_DRM_ATOMIC_MODESET_AVAILABLE
 //#define NV_DRM_ATOMIC_MODESET_NONBLOCKING_COMMIT_AVAILABLE
-#define NV_DRM_DEV_UNREF_PRESENT
+
+#define NV_DRM_DRM_DRV_H_PRESENT
+#define NV_DRM_DRM_DEVICE_H_PRESENT
+#define NV_DRM_DRM_GEM_H_PRESENT
+#define NV_DRM_DRM_PROBE_HELPER_H_PRESENT
+#define NV_DRM_DRM_PRIME_H_PRESENT
+#define NV_DRM_DRMP_H_PRESENT
+#define NV_DRM_DRM_ATOMIC_UAPI_H_PRESENT
+
+#define NV_DRM_FRAMEBUFFER_GET_PRESENT
+#define NV_DRM_GEM_OBJECT_GET_PRESENT
+#define NV_DRM_DEV_PUT_PRESENT
 #define NV_DRM_ATOMIC_HELPER_SET_CONFIG_PRESENT
 #define NV_DRM_ATOMIC_HELPER_SET_CONFIG_HAS_CTX_ARG
 #define NV_DRM_MODE_OBJECT_FIND_HAS_FILE_PRIV_ARG
-#define NV_DRM_CONNECTOR_FUNCS_HAVE_MODE_IN_NAME
 #define NV_DRM_GEM_OBJECT_LOOKUP_PRESENT
 #define	NV_DRM_GEM_OBJECT_LOOKUP_ARGUMENT_COUNT 2
 #define NV_DRM_CRTC_HELPER_FUNCS_HAS_ATOMIC_ENABLE
@@ -105,6 +134,10 @@
 #define NV_DRM_DRIVER_HAS_LEGACY_DEV_LIST
 #define NV_DRM_ENCODER_INIT_HAS_NAME_ARG
 #define NV_DRM_HELPER_MODE_FILL_FB_STRUCT_HAS_DEV_ARG
+#define NV_DRM_CONNECTOR_FOR_EACH_POSSIBLE_ENCODER_ARGUMENT_COUNT 3
+#define NV_DRM_ATOMIC_HELPER_SWAP_STATE_HAS_STALL_ARG
+#define NV_DRM_ATOMIC_HELPER_SWAP_STATE_RETURN_INT
+#define NV_DRM_ATOMIC_STATE_REF_COUNTING_PRESENT
 
 #endif /* defined(__linux__) */
 

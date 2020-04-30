@@ -23,7 +23,9 @@
 #ifndef __NV_MM_H__
 #define __NV_MM_H__
 
+#ifdef __linux__
 #include "conftest.h"
+#endif
 
 #if !defined(NV_VM_FAULT_T_IS_PRESENT)
 typedef int vm_fault_t;

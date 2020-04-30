@@ -934,9 +934,11 @@ void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
 
     dev->dev_private = nv_dev;
     nv_dev->dev = dev;
+#ifdef __linux__
     if (device->bus == &pci_bus_type) {
         dev->pdev = to_pci_dev(device);
     }
+#endif
 
     /* Register DRM device to DRM sub-system */
 

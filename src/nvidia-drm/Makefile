@@ -65,14 +65,18 @@ CFLAGS += -Imachine
 # So that the build can include sys/stddef.h
 CFLAGS += -I${SYSDIR}/sys
 
-CFLAGS += -g -I../common/inc -O0 -Wno-visibility
+CFLAGS += -g -I/usr/include -I../common/inc -O0 -Wno-visibility
 # FreeBSD linuxkpi specific headers
 CFLAGS += \
-	-I../common/linuxkpi/include \
-	-I../common/linuxkpi/include/uapi \
-	-I../common/linuxkpi/gplv2/include \
-	-I../common/linuxkpi/dummy/include \
-	-I../common/linuxkpi/drivers/gpu
+        -I/home/ashafer/git/kms-drm/linuxkpi/gplv2/include/ \
+        -I/usr/src/sys/compat/linuxkpi/common/include/ \
+        -I/home/ashafer/git/kms-drm/linuxkpi/dummy/include/ \
+        -I/home/ashafer/git/kms-drm/include/ \
+        -I/home/ashafer/git/kms-drm/include/uapi/ \
+        -I/home/ashafer/git/kms-drm/drivers/gpu/
+
+# make sure /usr/include is before all the other includes
+#CFLAGS = "-I/usr/include/ $CFLAGS"
 
 CFLAGS += -DNV_VERSION_STRING=\"440.82\"
 
