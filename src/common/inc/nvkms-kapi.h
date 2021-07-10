@@ -18,17 +18,6 @@
 
 #define __NVKMS_KAPI_H__
 
-/*
- * On Linux-x86, the kernel's function calling convention may pass
- * parameters in registers.  Force functions called to and from core
- * NVKMS to pass parameters on the stack.
- */
-#if NVCPU_IS_X86
-  #define NVKMS_KAPI_CALL __attribute__((regparm(0)))
-#else
-  #define NVKMS_KAPI_CALL
-#endif
-
 #define NVKMS_KAPI_MAX_HEADS           4
 
 #define NVKMS_KAPI_MAX_CONNECTORS     16
@@ -58,7 +47,12 @@ typedef NvU32 NvKmsKapiDisplay;
  * @{
  */
 
-typedef void NVKMS_KAPI_CALL NvKmsChannelEventProc(void *dataPtr, NvU32 dataU32);
+/*
+ * Note: The channel event proc should not call back into NVKMS-KAPI driver.
+ * The callback into NVKMS-KAPI from the channel event proc, may cause
+ * deadlock.
+ */
+typedef void NvKmsChannelEventProc(void *dataPtr, NvU32 dataU32);
 
 /** @} */
 
@@ -102,6 +96,13 @@ struct NvKmsKapiDisplayMode {
     char name[NVKMS_KAPI_MODE_NAME_LEN];
 };
 
+typedef enum NvKmsKapiLayerTypeRec {
+    NVKMS_KAPI_LAYER_PRIMARY = 0,
+    NVKMS_KAPI_LAYER_CURSOR  = 1,
+    NVKMS_KAPI_LAYER_OVERLAY = 2,
+    NVKMS_KAPI_LAYER_MAX     = 3,
+} NvKmsKapiLayerType;
+
 struct NvKmsKapiDeviceResourcesInfo {
 
     NvU32 numHeads;
@@ -111,6 +112,9 @@ struct NvKmsKapiDeviceResourcesInfo {
 
     struct {
         NvU32 validCursorCompositionModes;
+        NvU32 validOverlayCompositionModes;
+
+        NvU16 validLayerRRTransforms;
 
         NvU32 minWidthInPixels;
         NvU32 maxWidthInPixels;
@@ -123,16 +127,14 @@ struct NvKmsKapiDeviceResourcesInfo {
         NvU32 pitchAlignment;
 
         NvU32 hasVideoMemory;
+
+        NvU8  genericPageKind;
+
+        NvBool  supportsSyncpts;
     } caps;
 
+    NvU64 supportedSurfaceMemoryFormats[NVKMS_KAPI_LAYER_MAX];
 };
-
-typedef enum NvKmsKapiLayerTypeRec {
-    NVKMS_KAPI_LAYER_PRIMARY = 0,
-    NVKMS_KAPI_LAYER_CURSOR  = 1,
-    NVKMS_KAPI_LAYER_OVERLAY = 2,
-    NVKMS_KAPI_LAYER_MAX     = 3,
-} NvKmsKapiLayerType;
 
 #define NVKMS_KAPI_LAYER_MASK(layerType) (1 << (layerType))
 
@@ -154,7 +156,7 @@ struct NvKmsKapiConnectorInfo {
 
     /*
      * List of connectors, not possible to serve together with this connector
-     * becase they are competing for same resources.
+     * because they are competing for same resources.
      */
     NvU32        numIncompatibleConnectors;
     NvKmsKapiConnector incompatibleConnectorHandles[NVKMS_KAPI_MAX_CONNECTORS];
@@ -178,14 +180,33 @@ struct NvKmsKapiStaticDisplayInfo {
 
 };
 
+struct NvKmsKapiSyncpt {
+
+    /*!
+     * Possible syncpt use case in kapi.
+     * For pre-syncpt, use only id and value
+     * and for post-syncpt, use only fd.
+     */
+    NvBool  preSyncptSpecified;
+    NvU32   preSyncptId;
+    NvU32   preSyncptValue;
+
+    NvBool  postSyncptRequested;
+};
+
 struct NvKmsKapiLayerConfig {
     struct NvKmsKapiSurface *surface;
     struct NvKmsCompositionParams compParams;
+    struct NvKmsRRParams rrParams;
+    struct NvKmsKapiSyncpt syncptParams;
+
+    NvU8 minPresentInterval;
+    NvBool tearing;
 
     NvU16 srcX, srcY;
     NvU16 srcWidth, srcHeight;
 
-    NvU16 dstX, dstY;
+    NvS16 dstX, dstY;
     NvU16 dstWidth, dstHeight;
 };
 
@@ -243,6 +264,20 @@ struct NvKmsKapiRequestedModeSetConfig {
         headRequestedConfig[NVKMS_KAPI_MAX_HEADS];
 };
 
+struct NvKmsKapiLayerReplyConfig {
+    int postSyncptFd;
+};
+
+struct NvKmsKapiHeadReplyConfig {
+    struct NvKmsKapiLayerReplyConfig
+        layerReplyConfig[NVKMS_KAPI_LAYER_MAX];
+};
+
+struct NvKmsKapiModeSetReplyConfig {
+    struct NvKmsKapiHeadReplyConfig
+        headReplyConfig[NVKMS_KAPI_MAX_HEADS];
+};
+
 struct NvKmsKapiEventDisplayChanged {
     NvKmsKapiDisplay display;
 };
@@ -254,6 +289,17 @@ struct NvKmsKapiEventDynamicDisplayConnected {
 struct NvKmsKapiEventFlipOccurred {
     NvU32 head;
     NvKmsKapiLayerType layer;
+};
+
+struct NvKmsKapiDpyCRC32 {
+    NvU32 value;
+    NvBool supported;
+};
+
+struct NvKmsKapiCrcs {
+    struct NvKmsKapiDpyCRC32 compositorCrc32;
+    struct NvKmsKapiDpyCRC32 rasterGeneratorCrc32;
+    struct NvKmsKapiDpyCRC32 outputCrc32;
 };
 
 struct NvKmsKapiEvent {
@@ -303,6 +349,38 @@ struct NvKmsKapiDynamicDisplayParams {
     NvBool forceDisconnected;
 };
 
+struct NvKmsKapiCreateSurfaceParams {
+
+    /* [IN] Parameter of each plane */
+    struct {
+        /* [IN] Memory allocated for plane, using allocateMemory() */
+        struct NvKmsKapiMemory *memory;
+        /* [IN] Offsets within the memory object */
+        NvU32 offset;
+        /* [IN] Byte pitch of plane */
+        NvU32 pitch;
+    } planes[NVKMS_MAX_PLANES_PER_SURFACE];
+
+    /* [IN] Width of the surface, in pixels */
+    NvU32 width;
+    /* [IN] Height of the surface, in pixels */
+    NvU32 height;
+
+    /* [IN]  The format describing number of planes and their content */
+    enum NvKmsSurfaceMemoryFormat format;
+
+    /* [IN] Whether to override the surface objects memory layout parameters
+     *      with those provided here.  */
+    NvBool explicit_layout;
+    /* [IN] Whether the surface layout is block-linear or pitch.  Used only
+     *      if explicit_layout is NV_TRUE */
+    enum NvKmsSurfaceMemoryLayout layout;
+    /* [IN] block-linear block height of surface.  Used only when
+     *      explicit_layout is NV_TRUE and layout is
+     *      NvKmsSurfaceMemoryLayoutBlockLinear */
+    NvU8 log2GobsPerBlockY;
+};
+
 struct NvKmsKapiFunctionsTable {
 
     /*!
@@ -326,7 +404,7 @@ struct NvKmsKapiFunctionsTable {
      *
      * \return  Count of enumerated gpus.
      */
-    NvU32 NVKMS_KAPI_CALL (*enumerateGpus)(nv_gpu_info_t *gpuInfo);
+    NvU32 (*enumerateGpus)(nv_gpu_info_t *gpuInfo);
 
     /*!
      * Allocate an NVK device using which you can query/allocate resources on
@@ -336,7 +414,7 @@ struct NvKmsKapiFunctionsTable {
      *
      * \return  An valid device handle on success, NULL on failure.
      */
-    struct NvKmsKapiDevice* NVKMS_KAPI_CALL (*allocateDevice)
+    struct NvKmsKapiDevice* (*allocateDevice)
     (
         const struct NvKmsKapiAllocateDeviceParams *params
     );
@@ -347,7 +425,7 @@ struct NvKmsKapiFunctionsTable {
      * \param [in]  device  A device returned by allocateDevice().
      *                      This function is a no-op if device is not valid.
      */
-    void NVKMS_KAPI_CALL (*freeDevice)(struct NvKmsKapiDevice *device);
+    void (*freeDevice)(struct NvKmsKapiDevice *device);
 
     /*!
      * Grab ownership of device, ownership is required to do modeset.
@@ -356,14 +434,14 @@ struct NvKmsKapiFunctionsTable {
      *
      * \return NV_TRUE on success, NV_FALSE on failure.
      */
-    NvBool NVKMS_KAPI_CALL (*grabOwnership)(struct NvKmsKapiDevice *device);
+    NvBool (*grabOwnership)(struct NvKmsKapiDevice *device);
 
     /*!
      * Release ownership of device.
      *
      * \param [in]  device  A device returned by allocateDevice().
      */
-    void NVKMS_KAPI_CALL (*releaseOwnership)(struct NvKmsKapiDevice *device);
+    void (*releaseOwnership)(struct NvKmsKapiDevice *device);
 
     /*!
      * Registers for notification, via
@@ -381,7 +459,7 @@ struct NvKmsKapiFunctionsTable {
      *
      * \return NV_TRUE on success, NV_FALSE on failure.
      */
-    NvBool NVKMS_KAPI_CALL (*declareEventInterest)
+    NvBool (*declareEventInterest)
     (
         const struct NvKmsKapiDevice *device,
         const NvU32 interestMask
@@ -399,7 +477,7 @@ struct NvKmsKapiFunctionsTable {
      *
      * \return NV_TRUE on success, NV_FALSE on failure.
      */
-    NvBool NVKMS_KAPI_CALL (*getDeviceResourcesInfo)
+    NvBool (*getDeviceResourcesInfo)
     (
         struct NvKmsKapiDevice *device,
         struct NvKmsKapiDeviceResourcesInfo *info
@@ -425,7 +503,7 @@ struct NvKmsKapiFunctionsTable {
      *
      * \return NV_TRUE on success, NV_FALSE on failure.
      */
-    NvBool NVKMS_KAPI_CALL (*getDisplays)
+    NvBool (*getDisplays)
     (
         struct NvKmsKapiDevice *device,
         NvU32 *numDisplays, NvKmsKapiDisplay *displayHandles
@@ -445,7 +523,7 @@ struct NvKmsKapiFunctionsTable {
      *
      * \return NV_TRUE on success, NV_FALSE on failure.
      */
-    NvBool NVKMS_KAPI_CALL (*getConnectorInfo)
+    NvBool (*getConnectorInfo)
     (
         struct NvKmsKapiDevice *device,
         NvKmsKapiConnector connector, struct NvKmsKapiConnectorInfo *info
@@ -465,7 +543,7 @@ struct NvKmsKapiFunctionsTable {
      *
      * \return NV_TRUE on success, NV_FALSE on failure.
      */
-    NvBool NVKMS_KAPI_CALL (*getStaticDisplayInfo)
+    NvBool (*getStaticDisplayInfo)
     (
         struct NvKmsKapiDevice *device,
         NvKmsKapiDisplay display, struct NvKmsKapiStaticDisplayInfo *info
@@ -480,7 +558,7 @@ struct NvKmsKapiFunctionsTable {
      *
      * \return NV_TRUE on success, NV_FALSE on failure.
      */
-    NvBool NVKMS_KAPI_CALL (*getDynamicDisplayInfo)
+    NvBool (*getDynamicDisplayInfo)
     (
         struct NvKmsKapiDevice *device,
         struct NvKmsKapiDynamicDisplayParams *params
@@ -491,34 +569,56 @@ struct NvKmsKapiFunctionsTable {
      *
      * This function allocates video memory on the specified GPU.
      * It should be suitable for mapping on the CPU as a pitch
-     * linear surface.
+     * linear or block-linear surface.
      *
      * \param [in] device  A device allocated using allocateDevice().
      *
+     * \param [in] layout  BlockLinear or Pitch.
+     *
      * \param [in] size    Size, in bytes, of the memory to allocate.
+     *
+     * \param [in/out] compressible For input, non-zero if compression
+     *                              backing store should be allocated for
+     *                              the memory, for output, non-zero if
+     *                              compression backing store was
+     *                              allocated for the memory.
      *
      * \return An valid memory handle on success, NULL on failure.
      */
-    struct NvKmsKapiMemory* NVKMS_KAPI_CALL (*allocateVideoMemory)
+    struct NvKmsKapiMemory* (*allocateVideoMemory)
     (
-        struct NvKmsKapiDevice *device, NvU64 size
+        struct NvKmsKapiDevice *device,
+        enum NvKmsSurfaceMemoryLayout layout,
+        NvU64 size,
+        NvU8 *compressible
     );
 
     /*!
      * Allocate some unformatted system memory of the specified size.
      *
      * This function allocates system memory . It should be suitable
-     * for mapping on the CPU as a pitch linear surface.
+     * for mapping on the CPU as a pitch linear or block-linear surface.
      *
      * \param [in] device  A device allocated using allocateDevice().
      *
+     * \param [in] layout  BlockLinear or Pitch.
+     *
      * \param [in] size    Size, in bytes, of the memory to allocate.
+     *
+     * \param [in/out] compressible For input, non-zero if compression
+     *                              backing store should be allocated for
+     *                              the memory, for output, non-zero if
+     *                              compression backing store was
+     *                              allocated for the memory.
      *
      * \return An valid memory handle on success, NULL on failure.
      */
-    struct NvKmsKapiMemory* NVKMS_KAPI_CALL (*allocateSystemMemory)
+    struct NvKmsKapiMemory* (*allocateSystemMemory)
     (
-        struct NvKmsKapiDevice *device, NvU64 size
+        struct NvKmsKapiDevice *device,
+        enum NvKmsSurfaceMemoryLayout layout,
+        NvU64 size,
+        NvU8 *compressible
     );
 
     /*!
@@ -543,7 +643,7 @@ struct NvKmsKapiFunctionsTable {
      *
      * \return A valid memory handle on success, NULL on failure.
      */
-    struct NvKmsKapiMemory* NVKMS_KAPI_CALL (*importMemory)
+    struct NvKmsKapiMemory* (*importMemory)
     (
         struct NvKmsKapiDevice *device, NvU64 size,
         NvU64 nvKmsParamsUser,
@@ -565,7 +665,7 @@ struct NvKmsKapiFunctionsTable {
      *
      * \return A valid memory handle on success, NULL on failure.
      */
-    struct NvKmsKapiMemory* NVKMS_KAPI_CALL (*dupMemory)
+    struct NvKmsKapiMemory* (*dupMemory)
     (
         struct NvKmsKapiDevice *device,
         const struct NvKmsKapiDevice *srcDevice,
@@ -594,7 +694,7 @@ struct NvKmsKapiFunctionsTable {
      *
      * \return NV_TRUE on success, NV_FALSE on failure.
      */
-    NvBool NVKMS_KAPI_CALL (*exportMemory)
+    NvBool (*exportMemory)
     (
         const struct NvKmsKapiDevice *device,
         const struct NvKmsKapiMemory *memory,
@@ -611,7 +711,7 @@ struct NvKmsKapiFunctionsTable {
      *
      * \return NV_TRUE on success, NV_FALSE if memory is in use.
      */
-    void NVKMS_KAPI_CALL (*freeMemory)
+    void (*freeMemory)
     (
         struct NvKmsKapiDevice *device, struct NvKmsKapiMemory *memory
     );
@@ -631,7 +731,7 @@ struct NvKmsKapiFunctionsTable {
      *
      * \return NV_TRUE on success, NV_FALSE on failure.
      */
-    NvBool NVKMS_KAPI_CALL (*mapMemory)
+    NvBool (*mapMemory)
     (
         const struct NvKmsKapiDevice *device,
         const struct NvKmsKapiMemory *memory, NvKmsKapiMappingType type,
@@ -650,7 +750,7 @@ struct NvKmsKapiFunctionsTable {
      *
      * \param [in]  pLinearAddress   The MMIO address return by mapMemory()
      */
-    void NVKMS_KAPI_CALL (*unmapMemory)
+    void (*unmapMemory)
     (
         const struct NvKmsKapiDevice *device,
         const struct NvKmsKapiMemory *memory, NvKmsKapiMappingType type,
@@ -662,24 +762,14 @@ struct NvKmsKapiFunctionsTable {
      *
      * \param [in]  device  A device allocated using allocateDevice().
      *
-     * \param [in]  memory  Memory allocated using allocateMemory()
-     *
-     * \param [in]  format  The format used to interpret the memory contents of
-     *                      the surface being created.
-     *
-     * \param [in]  width   Width of the surface, in pixels.
-     *
-     * \param [in]  height  Height of the surface, in pixels.
-     *
-     * \param [in]  pitch   Byte pitch of the surface.
+     * \param [in]  params  Parameters to the surface creation.
      *
      * \return  An valid surface handle on success.  NULL on failure.
      */
-    struct NvKmsKapiSurface* NVKMS_KAPI_CALL (*createSurface)
+    struct NvKmsKapiSurface* (*createSurface)
     (
         struct NvKmsKapiDevice *device,
-        struct NvKmsKapiMemory *memory, enum NvKmsSurfaceMemoryFormat format,
-        NvU32 width, NvU32 height, NvU32 pitch
+        struct NvKmsKapiCreateSurfaceParams *params
     );
 
     /*!
@@ -689,7 +779,7 @@ struct NvKmsKapiFunctionsTable {
      *
      * \param [in]  surface  A surface created using createSurface()
      */
-    void NVKMS_KAPI_CALL (*destroySurface)
+    void (*destroySurface)
     (
         struct NvKmsKapiDevice *device, struct NvKmsKapiSurface *surface
     );
@@ -716,7 +806,7 @@ struct NvKmsKapiFunctionsTable {
      * \return Value >= 1 if more modes are available, 0 if no more modes are
      *         available, and Value < 0 on failure.
      */
-    int NVKMS_KAPI_CALL (*getDisplayMode)
+    int (*getDisplayMode)
     (
         struct NvKmsKapiDevice *device,
         NvKmsKapiDisplay display, NvU32 modeIndex,
@@ -736,7 +826,7 @@ struct NvKmsKapiFunctionsTable {
      *
      * \return NV_TRUE if mode-timings are valid, NV_FALSE on failure.
      */
-    NvBool NVKMS_KAPI_CALL (*validateDisplayMode)
+    NvBool (*validateDisplayMode)
     (
         struct NvKmsKapiDevice *device,
         NvKmsKapiDisplay display, const struct NvKmsKapiDisplayMode *mode
@@ -758,10 +848,11 @@ struct NvKmsKapiFunctionsTable {
      *
      * \return NV_TRUE on success, NV_FALSE on failure.
      */
-    NvBool NVKMS_KAPI_CALL (*applyModeSetConfig)
+    NvBool (*applyModeSetConfig)
     (
         struct NvKmsKapiDevice *device,
         const struct NvKmsKapiRequestedModeSetConfig *requestedConfig,
+        struct NvKmsKapiModeSetReplyConfig *replyConfig,
         const NvBool commit
     );
 
@@ -779,7 +870,7 @@ struct NvKmsKapiFunctionsTable {
      *
      * \return NV_TRUE on success, NV_FALSE on failure.
      */
-    NvBool NVKMS_KAPI_CALL (*getFlipPendingStatus)
+    NvBool (*getFlipPendingStatus)
     (
         const struct NvKmsKapiDevice *device,
         const NvU32 head,
@@ -804,7 +895,7 @@ struct NvKmsKapiFunctionsTable {
      *
      * \return struct NvKmsKapiChannelEvent* on success, NULL on failure.
      */
-    struct NvKmsKapiChannelEvent* NVKMS_KAPI_CALL (*allocateChannelEvent)
+    struct NvKmsKapiChannelEvent* (*allocateChannelEvent)
     (
         struct NvKmsKapiDevice *device,
         NvKmsChannelEventProc *proc,
@@ -821,7 +912,7 @@ struct NvKmsKapiFunctionsTable {
      * \param [in]  cb      struct NvKmsKapiChannelEvent* returned from
      *                      allocateChannelEvent()
      */
-    void NVKMS_KAPI_CALL (*freeChannelEvent)
+    void (*freeChannelEvent)
     (
         struct NvKmsKapiDevice *device,
         struct NvKmsKapiChannelEvent *cb
@@ -840,12 +931,82 @@ struct NvKmsKapiFunctionsTable {
      *
      * \return NV_TRUE on success, NV_FALSE on failure.
      */
-    NvBool NVKMS_KAPI_CALL (*getCRC32)
+    NvBool (*getCRC32)
     (
         struct NvKmsKapiDevice *device,
         NvU32 head,
-        NvU32 *crc32
+        struct NvKmsKapiCrcs *crc32
     );
+
+     /*!
+     * Get the list allocation pages corresponding to the specified memory object.
+     *
+     * \param [in]  device  A device allocated using allocateDevice().
+     *
+     * \param [in]  memory  The memory object for which we need to find the
+     *                      list of allocation pages and number of pages.
+     *
+     * \param [out] pPages  A pointer to the list of NvU64 pointers. Caller
+     *                      should free pPages on success using freeMemoryPages().
+     *
+     * \param [out] pNumPages It gives the total number of NvU64 pointers
+     *                        returned in pPages.
+     *
+     * \return NV_TRUE on success, NV_FALSE on failure.
+     */
+    NvBool (*getMemoryPages)
+    (
+        const struct NvKmsKapiDevice *device,
+        const struct NvKmsKapiMemory *memory,
+        NvU64 **pPages,
+        NvU32 *pNumPages
+    );
+
+    /*!
+     * Free the list of allocation pages returned by getMemoryPages()
+     *
+     * \param [in] pPages  A list of NvU64 pointers allocated by getMemoryPages().
+     *
+     */
+    void (*freeMemoryPages)
+    (
+        NvU64 *pPages
+    );
+
+    /*
+     * Import SGT as a memory handle.
+     *
+     * \param [in] device  A device allocated using allocateDevice().
+     *
+     * \param [in] sgt     SGT pointer.
+     * \param [in] gem     GEM pointer that pinned SGT, to be refcounted.
+     *
+     * \param [in] limit   Size, in bytes, of the memory backed by the SGT.
+     *
+     * \return A valid memory handle on success, NULL on failure.
+     */
+    struct NvKmsKapiMemory*
+    (*getSystemMemoryHandleFromSgt)(struct NvKmsKapiDevice *device,
+                                    NvP64 sgt,
+                                    NvP64 gem,
+                                    NvU32 limit);
+
+    /*
+     * Import dma-buf in the memory handle.
+     *
+     * \param [in] device  A device allocated using allocateDevice().
+     *
+     * \param [in] dmaBuf  DMA-BUF pointer.
+     *
+     * \param [in] limit   Size, in bytes, of the dma-buf.
+     *
+     * \return An valid memory handle on success, NULL on failure.
+     */
+    struct NvKmsKapiMemory*
+    (*getSystemMemoryHandleFromDmaBuf)(struct NvKmsKapiDevice *device,
+                                       NvP64 dmaBuf,
+                                       NvU32 limit);
+
 };
 
 /** @} */
@@ -855,7 +1016,7 @@ struct NvKmsKapiFunctionsTable {
  * @{
  */
 
-NvBool NVKMS_KAPI_CALL nvKmsKapiGetFunctionsTable
+NvBool nvKmsKapiGetFunctionsTable
 (
     struct NvKmsKapiFunctionsTable *funcsTable
 );

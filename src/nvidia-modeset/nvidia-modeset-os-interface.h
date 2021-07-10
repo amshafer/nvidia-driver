@@ -346,9 +346,9 @@ void nvkms_unregister_backlight(struct nvkms_backlight_device *nvkms_bd);
 struct nvkms_per_open *nvkms_open_common(enum NvKmsClientType,
                                          struct NvKmsKapiDevice *,
                                          int *);
-void NVKMS_API_CALL nvkms_close_common(struct nvkms_per_open *);
-int NVKMS_API_CALL nvkms_ioctl_common(struct nvkms_per_open *,
-				      NvU32, NvU64, const size_t);
+void nvkms_close_common(struct nvkms_per_open *);
+int nvkms_ioctl_common(struct nvkms_per_open *,
+                       NvU32, NvU64, const size_t);
 
 #endif /* _NVIDIA_MODESET_OS_INTERFACE_H_ */
 

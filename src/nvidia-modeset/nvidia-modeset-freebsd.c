@@ -712,6 +712,123 @@ void nvkms_unregister_backlight(struct nvkms_backlight_device *nvkms_bd)
 }
 
 /*************************************************************************
+ * Common to both user-space and kapi NVKMS interfaces
+ *************************************************************************/
+
+static void nvkms_kapi_task_callback(void *arg, int pending __unused)
+{
+	struct NvKmsKapiDevice *device = arg;
+
+	printf("nvkms_kapi_task_callback: device = 0x%lx\n", (unsigned long)device);
+	nvKmsKapiHandleEventQueueChange(device);
+}
+
+/* 
+ * a mirror of nvkms_open. Does the kernel space opening
+ * - don't add character device 
+ * - don't handle NVKMS_CLIENT_USER_SPACE (thats nvkms_open)
+ * - doesn't do select, uses task queueing
+ */
+struct nvkms_per_open *nvkms_open_common(enum NvKmsClientType type,
+                                         struct NvKmsKapiDevice *device,
+                                         int *status)
+{
+    struct nvkms_per_open *popen = NULL;
+
+    printf("nvkms_open_common:\n");
+    popen = nvkms_alloc(sizeof(*popen), NV_TRUE);
+
+    if (popen == NULL) {
+        *status = -ENOMEM;
+	printf("nvkms_open_common: nvkms_alloc failed\n");
+        goto failed;
+    }
+
+    mtx_init(&popen->tasks.lock, "nvidia-modeset-tasks", NULL, MTX_DEF);
+
+    sx_xlock(&nvkms_lock);
+    popen->data = nvKmsOpen(curproc->p_pid, type, popen);
+    sx_xunlock(&nvkms_lock);
+
+    if (popen->data == NULL) {	    
+        *status = -EPERM;
+	printf("nvkms_open_common: nvKmsOpen failed\n");
+        goto failed;
+    }
+
+    /* init and enqueue our new task */
+    TASK_INIT(&popen->tasks.task, 0,
+	      nvkms_kapi_task_callback, (void *)device);
+    taskqueue_enqueue(taskqueue_thread, &popen->tasks.task);
+
+    *status = 0;
+
+    printf("nvkms_open_common: return 0x%x\n", (unsigned int)popen);
+    return popen;
+
+failed:
+
+    nvkms_free(popen, sizeof(*popen));
+
+    return NULL;
+}
+
+void nvkms_close_common(struct nvkms_per_open *popen)
+{
+	printf("nvkms_close_common:\n");
+    sx_xlock(&nvkms_lock);
+
+    nvKmsClose(popen->data);
+
+    popen->data = NULL;
+
+    sx_xunlock(&nvkms_lock);
+
+    /*
+     * Flush any outstanding nvkms_kapi_task_callback() work
+     * items before freeing popen.
+     *
+     * Note that this must be done after the above nvKmsClose() call, to
+     * guarantee that no more nvkms_kapi_task_callback() work
+     * items get scheduled.
+     *
+     * Also, note that though popen->data is freed above, any subsequent
+     * nvkms_kapi_task_callback()'s for this popen should be
+     * safe: if any nvkms_kapi_task_callback()-initiated work
+     * attempts to call back into NVKMS, the popen->data==NULL check in
+     * nvkms_ioctl_common() should reject the request.
+     */
+
+    taskqueue_drain(taskqueue_thread, &popen->tasks.task);
+    mtx_destroy(&popen->tasks.lock);
+
+    nvkms_free(popen, sizeof(*popen));
+}
+
+int nvkms_ioctl_common
+(
+    struct nvkms_per_open *popen,
+    NvU32 cmd, NvU64 address, const size_t size
+)
+{
+    NvBool ret;
+
+    printf("nvkms_ioctl_common: \n");
+    sx_xlock(&nvkms_lock);
+
+    if (popen && popen->data) {
+        ret = nvKmsIoctl(popen->data, cmd, address, size);
+    } else {
+        ret = NV_FALSE;
+    }
+
+    sx_xunlock(&nvkms_lock);
+
+    printf("nvkms_ioctl_common: return 0x%x\n", ret);
+    return ret ? 0 : -EPERM;
+}
+
+/*************************************************************************
  * NVKMS interface for kernel space NVKMS clients like KAPI
  *************************************************************************/
 
@@ -745,6 +862,11 @@ NvBool nvkms_ioctl_from_kapi
  * APIs for locking.
  *************************************************************************/
 
+/* according to man mutexes on bsd are faster than semaphores */
+struct nvkms_sema_t {
+	struct mtx nvs_mutex;
+};
+
 nvkms_sema_handle_t* nvkms_sema_alloc(void)
 {
     nvkms_sema_handle_t *sema = nvkms_alloc(sizeof(nvkms_sema_handle_t), NV_TRUE);
@@ -761,7 +883,7 @@ void nvkms_sema_free(nvkms_sema_handle_t *sema)
     nvkms_free(sema, sizeof(*sema));
 }
 
-void nvkms_sema_down(nvkms_sema_handle_t *seam)
+void nvkms_sema_down(nvkms_sema_handle_t *sema)
 {
     mtx_lock(&sema->nvs_mutex);
 }
@@ -775,7 +897,7 @@ void nvkms_sema_up(nvkms_sema_handle_t *sema)
  * NVKMS KAPI functions
  ************************************************************************/
 
-NvBool NVKMS_KAPI_CALL nvKmsKapiGetFunctionsTable
+NvBool nvKmsKapiGetFunctionsTable
 (
     struct NvKmsKapiFunctionsTable *funcsTable
 )
