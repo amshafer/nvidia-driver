@@ -89,6 +89,7 @@ static vm_fault_t __nv_drm_gem_nvkms_handle_vma_fault(
 
     page_offset = vmf->pgoff - drm_vma_node_start(&gem->vma_node);
 
+#ifdef __linux__
 #if defined(NV_VMF_INSERT_PFN_PRESENT)
     ret = vmf_insert_pfn(vma, address, pfn + page_offset);
 #else
@@ -112,7 +113,46 @@ static vm_fault_t __nv_drm_gem_nvkms_handle_vma_fault(
             break;
     }
 #endif /* defined(NV_VMF_INSERT_PFN_PRESENT) */
+#else
+    /* FreeBSD specific: find location to insert new page */
+    vm_pindex_t pidx = OFF_TO_IDX(address);
+    vm_page_t page = PHYS_TO_VM_PAGE(IDX_TO_OFF(pfn + pidx));
+    vm_object_t obj = vma->vm_obj;
+
+    //NV_DRM_LOG_INFO("__nv_drm_vma_fault: obj = 0x%lx | page = 0x%lx | pidx = 0x%lx",
+    //(unsigned long)obj, (unsigned long)page, pidx);
+
+    if (!page || !obj) {
+        NV_DRM_LOG_INFO("__nv_drm_vma_fault: page was busy, probably got the wrong one");
+        return VM_FAULT_OOM;
+    }
+
+    if (vm_page_busied(page)) {
+        NV_DRM_LOG_INFO("__nv_drm_vma_fault: page was busy, probably got the wrong one");
+        return VM_FAULT_OOM;
+    }
+
+    if (vm_page_insert(page, obj, pidx)) {
+        NV_DRM_LOG_INFO("__nv_drm_vma_fault: Could not insert the page");
+        return VM_FAULT_OOM;
+    }
+
+    page->valid = VM_PAGE_BITS_ALL;
+    vm_page_xbusy(page);
+
+    ret = VM_FAULT_NOPAGE;
+
+    /*
+     * linuxkpi will communicate to vm_fault_populate which pages to
+     * map into the address space based on vm_pfn_first and vm_pfn_count
+     *  (sys/compat/linuxkpi/common/src/linux_compat.c line 577)
+     * we only mapped one page at a time, the page we added was page pidx
+     */
+    vma->vm_pfn_first = pidx;
+    vma->vm_pfn_count = 1;
     return ret;
+#endif /* __linux__ */
+        return ret;
 #endif /* defined(NV_DRM_ATOMIC_MODESET_AVAILABLE) */
     return VM_FAULT_SIGBUS;
 }

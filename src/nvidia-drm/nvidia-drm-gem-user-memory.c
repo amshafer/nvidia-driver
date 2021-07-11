@@ -114,6 +114,34 @@ static vm_fault_t __nv_drm_gem_user_memory_handle_vma_fault(
 
     BUG_ON(page_offset > nv_user_memory->pages_count);
 
+#ifndef __linux__
+    vm_page_t page = nv_user_memory->pages[page_offset];
+    vm_object_t obj = vma->vm_obj;
+    vm_pindex_t pidx = OFF_TO_IDX(address);
+    if (!page || !obj) {
+        NV_DRM_LOG_INFO("__nv_drm_vma_fault: page was busy, probably got the wrong one");
+        return VM_FAULT_OOM;
+    }
+
+    if (vm_page_busied(page)) {
+        NV_DRM_LOG_INFO("__nv_drm_vma_fault: page was busy, probably got the wrong one");
+        return VM_FAULT_OOM;
+    }
+    vm_page_insert(page, obj, pidx);
+    page->valid = VM_PAGE_BITS_ALL;
+    vm_page_xbusy(page);
+
+    /*
+     * linuxkpi will communicate to vm_fault_populate which pages to
+     * map into the address space based on vm_pfn_first and vm_pfn_count
+     *  (sys/compat/linuxkpi/common/src/linux_compat.c line 577)
+     * we only mapped one page at a time, the page we added was page pidx
+     */
+    vma->vm_pfn_first = pidx;
+    vma->vm_pfn_count = 1;
+    ret = VM_FAULT_NOPAGE;
+
+#else /* !defined(__linux__) */
     ret = vm_insert_page(vma, address, nv_user_memory->pages[page_offset]);
     switch (ret) {
         case 0:
@@ -132,6 +160,7 @@ static vm_fault_t __nv_drm_gem_user_memory_handle_vma_fault(
             ret = VM_FAULT_SIGBUS;
             break;
     }
+#endif /* !defined(__linux__) */
 
     return ret;
 }

@@ -69,6 +69,7 @@
 
 /* drm includes */
 #include <sys/types.h>
+#include <sys/nv.h>
 #include <linux/rbtree.h>
 #include <drm/drm_gem.h>
 
@@ -138,6 +139,10 @@
 #define NV_DRM_ATOMIC_HELPER_SWAP_STATE_HAS_STALL_ARG
 #define NV_DRM_ATOMIC_HELPER_SWAP_STATE_RETURN_INT
 #define NV_DRM_ATOMIC_STATE_REF_COUNTING_PRESENT
+#define NV_DRM_FORMAT_MODIFIERS_PRESENT
+#define NV_DRM_VMA_NODE_IS_ALLOWED_HAS_TAG_ARG
+#define NV_DRM_DRIVER_SET_MASTER_HAS_INT_RETURN_TYPE
+#define NV_VMF_INSERT_PFN_PRESENT
 
 #endif /* defined(__linux__) */
 

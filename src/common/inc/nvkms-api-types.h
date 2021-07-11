@@ -11,9 +11,11 @@
 #if !defined(NVKMS_API_TYPES_H)
 #define NVKMS_API_TYPES_H
 
-#include "nvtypes.h"
+#include <nvtypes.h>
+#include <nvmisc.h>
+#include <nvlimits.h>
 
-#define NVKMS_MAX_SUBDEVICES                  8
+#define NVKMS_MAX_SUBDEVICES                  NV_MAX_SUBDEVICES
 
 #define NVKMS_LEFT                            0
 #define NVKMS_RIGHT                           1
@@ -22,12 +24,14 @@
 #define NVKMS_MAIN_LAYER                      0
 #define NVKMS_OVERLAY_LAYER                   1
 #define NVKMS_MAX_LAYERS_PER_HEAD             2
-#define NVKMS_ALL_LAYERS_MASK                (BIT(NVKMS_MAIN_LAYER) | \
-                                              BIT(NVKMS_OVERLAY_LAYER))
+#define NVKMS_ALL_LAYERS_MASK                (NVBIT(NVKMS_MAIN_LAYER) | \
+                                              NVBIT(NVKMS_OVERLAY_LAYER))
 
 #define NVKMS_MAX_PLANES_PER_SURFACE          3
 
 #define NVKMS_DP_ADDRESS_STRING_LENGTH        64
+
+#define NVKMS_DEVICE_ID_TEGRA                 0x0000ffff
 
 typedef NvU32 NvKmsDeviceHandle;
 typedef NvU32 NvKmsDispHandle;
@@ -79,7 +83,8 @@ typedef enum {
     NVKMS_CONNECTOR_TYPE_LVDS    = 5,
     NVKMS_CONNECTOR_TYPE_HDMI    = 6,
     NVKMS_CONNECTOR_TYPE_USBC    = 7,
-    NVKMS_CONNECTOR_TYPE_UNKNOWN = 8,
+    NVKMS_CONNECTOR_TYPE_DSI     = 8,
+    NVKMS_CONNECTOR_TYPE_UNKNOWN = 9,
     NVKMS_CONNECTOR_TYPE_MAX     = NVKMS_CONNECTOR_TYPE_UNKNOWN,
 } NvKmsConnectorType;
 
@@ -95,6 +100,7 @@ const char *NvKmsConnectorTypeString(const NvKmsConnectorType connectorType)
     case NVKMS_CONNECTOR_TYPE_LVDS:  return "LVDS";
     case NVKMS_CONNECTOR_TYPE_HDMI:  return "HDMI";
     case NVKMS_CONNECTOR_TYPE_USBC:  return "USB-C";
+    case NVKMS_CONNECTOR_TYPE_DSI:   return "DSI";
     default: break;
     }
     return "Unknown";
@@ -105,7 +111,8 @@ typedef enum {
     NVKMS_CONNECTOR_SIGNAL_FORMAT_LVDS    = 1,
     NVKMS_CONNECTOR_SIGNAL_FORMAT_TMDS    = 2,
     NVKMS_CONNECTOR_SIGNAL_FORMAT_DP      = 3,
-    NVKMS_CONNECTOR_SIGNAL_FORMAT_UNKNOWN = 4,
+    NVKMS_CONNECTOR_SIGNAL_FORMAT_DSI     = 4,
+    NVKMS_CONNECTOR_SIGNAL_FORMAT_UNKNOWN = 5,
     NVKMS_CONNECTOR_SIGNAL_FORMAT_MAX     =
       NVKMS_CONNECTOR_SIGNAL_FORMAT_UNKNOWN,
 } NvKmsConnectorSignalFormat;
@@ -154,25 +161,49 @@ enum NvKmsEventType {
     NVKMS_EVENT_TYPE_DYNAMIC_DPY_DISCONNECTED,
     NVKMS_EVENT_TYPE_DPY_ATTRIBUTE_CHANGED,
     NVKMS_EVENT_TYPE_FRAMELOCK_ATTRIBUTE_CHANGED,
-    NVKMS_EVENT_TYPE_DISP_ATTRIBUTE_CHANGED,
     NVKMS_EVENT_TYPE_FLIP_OCCURRED,
+};
+
+typedef enum {
+    NV_EVO_SCALER_1TAP      = 0,
+    NV_EVO_SCALER_2TAPS     = 1,
+    NV_EVO_SCALER_3TAPS     = 2,
+    NV_EVO_SCALER_5TAPS     = 3,
+    NV_EVO_SCALER_8TAPS     = 4,
+    NV_EVO_SCALER_TAPS_MIN  = NV_EVO_SCALER_1TAP,
+    NV_EVO_SCALER_TAPS_MAX  = NV_EVO_SCALER_8TAPS,
+} NVEvoScalerTaps;
+
+/* This structure describes the scaling bounds for a given layer. */
+struct NvKmsScalingUsageBounds {
+    /*
+     * Maximum vertical downscale factor (scaled by 1024)
+     *
+     * For example, if the downscale factor is 1.5, then maxVDownscaleFactor
+     * would be 1.5 x 1024 = 1536.
+     */
+    NvU16 maxVDownscaleFactor;
+
+    /*
+     * Maximum horizontal downscale factor (scaled by 1024)
+     *
+     * See the example above for maxVDownscaleFactor.
+     */
+    NvU16 maxHDownscaleFactor;
+
+    /* Maximum vertical taps allowed */
+    NVEvoScalerTaps vTaps;
+
+    /* Whether vertical upscaling is allowed */
+    NvBool vUpscalingAllowed;
 };
 
 struct NvKmsUsageBounds {
     struct {
-        NvU8 depth;
-    } core;
-
-    struct {
         NvBool usable;
-        NvBool distRenderUsable;
-        NvU8 depth;
-    } base;
-
-    struct {
-        NvBool usable;
-        NvU8 depth;
-    } overlay;
+        struct NvKmsScalingUsageBounds scaling;
+        NvU64 supportedSurfaceMemoryFormats NV_ALIGN_BYTES(8);
+    } layer[NVKMS_MAX_LAYERS_PER_HEAD];
 };
 
 /*
@@ -199,6 +230,9 @@ struct NvKmsCscMatrix {
  * Composition modes used for surfaces in general.
  * The various types of composition are:
  *
+ * Opaque: source pixels are opaque regardless of alpha,
+ * and will occlude the destination pixel.
+ *
  * Alpha blending: aka opacity, which could be specified
  * for a surface in its entirety, or on a per-pixel basis.
  *
@@ -207,26 +241,29 @@ struct NvKmsCscMatrix {
  * Premultiplied: alpha already applied to source pixel,
  * so it only counter-weighs the destination pixel.
  *
- * Opaque: source pixels are opaque regardless of alpha,
- * and will occlude the destination pixel.
- *
  * Color keying: use a color key structure to decide
  * the criteria for matching and compositing.
  * (See NVColorKey below.)
  */
 enum NvKmsCompositionMode {
     /*!
+     * Modes that use no other parameters.
+     */
+    NVKMS_COMPOSITION_MODE_OPAQUE,
+
+    /*!
+     * Mode that ignores both per-pixel alpha provided
+     * by client and the surfaceAlpha, makes source pixel
+     * totally transparent.
+     */
+    NVKMS_COMPOSITION_MODE_TRANSPARENT,
+
+    /*!
      * Modes that use per-pixel alpha provided by client,
      * and the surfaceAlpha must be set to 0.
      */
     NVKMS_COMPOSITION_MODE_PREMULT_ALPHA,
     NVKMS_COMPOSITION_MODE_NON_PREMULT_ALPHA,
-    NVKMS_COMPOSITION_MODE_ADDITIVE,
-
-    /*!
-     * Modes that use no other parameters.
-     */
-    NVKMS_COMPOSITION_MODE_OPAQUE,
 
     /*!
      * These modes use the colorKey structure.
@@ -266,5 +303,95 @@ struct NvKmsCompositionParams {
         NVColorKey colorKey;
     };
 };
+
+/*!
+ * Surface layouts.
+ *
+ * BlockLinear is the NVIDIA GPU native tiling format, arranging pixels into
+ * blocks or tiles for better locality during common GPU operations.
+ *
+ * Pitch is the naive "linear" surface layout with pixels laid out sequentially
+ * in memory line-by-line, optionally with some padding at the end of each line
+ * for alignment purposes.
+ */
+enum NvKmsSurfaceMemoryLayout {
+    NvKmsSurfaceMemoryLayoutBlockLinear = 0,
+    NvKmsSurfaceMemoryLayoutPitch = 1,
+};
+
+static inline const char *NvKmsSurfaceMemoryLayoutToString(
+    enum NvKmsSurfaceMemoryLayout layout)
+{
+    switch (layout) {
+        default:
+            return "Unknown";
+        case NvKmsSurfaceMemoryLayoutBlockLinear:
+            return "BlockLinear";
+        case NvKmsSurfaceMemoryLayoutPitch:
+            return "Pitch";
+    }
+}
+
+typedef enum {
+    MUX_STATE_GET = 0,
+    MUX_STATE_INTEGRATED = 1,
+    MUX_STATE_DISCRETE = 2,
+    MUX_STATE_UNKNOWN = 3,
+} NvMuxState;
+
+enum NvKmsRotation {
+    NVKMS_ROTATION_0   = 0,
+    NVKMS_ROTATION_90  = 1,
+    NVKMS_ROTATION_180 = 2,
+    NVKMS_ROTATION_270 = 3,
+    NVKMS_ROTATION_MIN = NVKMS_ROTATION_0,
+    NVKMS_ROTATION_MAX = NVKMS_ROTATION_270,
+};
+
+struct NvKmsRRParams {
+    enum NvKmsRotation rotation;
+    NvBool reflectionX;
+    NvBool reflectionY;
+};
+
+/*!
+ * Convert each possible NvKmsRRParams to a unique integer [0..15],
+ * so that we can describe possible NvKmsRRParams with an NvU16 bitmask.
+ * 
+ * E.g.
+ * rotation = 0, reflectionX = F, reflectionY = F == 0|0|0 == 0
+ * ...
+ * rotation = 270, reflectionX = T, reflectionY = T == 3|4|8 == 15
+ */
+static inline NvU8 NvKmsRRParamsToCapBit(const struct NvKmsRRParams *rrParams)
+{
+    NvU8 bitPosition = (NvU8)rrParams->rotation;
+    if (rrParams->reflectionX) {
+        bitPosition |= NVBIT(2);
+    }
+    if (rrParams->reflectionY) {
+        bitPosition |= NVBIT(3);
+    }
+    return bitPosition;
+}
+
+/*
+ * NVKMS_MEMORY_ISO is used to tag surface memory that will be accessed via
+ * display's isochronous interface. Examples of this type of memory are pixel
+ * data and LUT entries.
+ *
+ * NVKMS_MEMORY_NISO is used to tag surface memory that will be accessed via
+ * display's non-isochronous interface. Examples of this type of memory are
+ * semaphores and notifiers.
+ */
+typedef enum {
+    NVKMS_MEMORY_ISO = 0,
+    NVKMS_MEMORY_NISO = 1,
+} NvKmsMemoryIsoType;
+
+typedef struct {
+    NvBool coherent;
+    NvBool noncoherent;
+} NvKmsDispIOCoherencyModes;
 
 #endif /* NVKMS_API_TYPES_H */

@@ -86,7 +86,7 @@ plane_req_config_update(struct drm_plane *plane,
     struct nv_drm_device *nv_dev = to_nv_device(plane->dev);
     struct nv_drm_plane_state *nv_drm_plane_state =
         to_nv_drm_plane_state(plane_state);
-    int ret = 0;
+    //int ret = 0;
 
     if (plane_state->fb == NULL) {
         plane_req_config_disable(req_config);
@@ -368,8 +368,8 @@ static int nv_drm_plane_atomic_set_property(
     uint64_t val)
 {
     struct nv_drm_device *nv_dev = to_nv_device(plane->dev);
-    struct nv_drm_plane_state *nv_drm_plane_state =
-        to_nv_drm_plane_state(state);
+    //struct nv_drm_plane_state *nv_drm_plane_state =
+    //  to_nv_drm_plane_state(state);
 
     if (property == nv_dev->nv_out_fence_property) {
 #if defined(NV_LINUX_NVHOST_H_PRESENT) && defined(CONFIG_TEGRA_GRHOST)
@@ -831,7 +831,11 @@ nv_drm_plane_create(struct drm_device *dev,
         formats, formats_count,
 #if defined(NV_DRM_UNIVERSAL_PLANE_INIT_HAS_FORMAT_MODIFIERS_ARG)
         (plane_type == DRM_PLANE_TYPE_CURSOR) ?
+#ifndef __linux__
+        (const uint64_t *)linear_modifiers : (const uint64_t *)nv_dev->modifiers,
+#else
         linear_modifiers : nv_dev->modifiers,
+#endif
 #endif
         plane_type
 #if defined(NV_DRM_UNIVERSAL_PLANE_INIT_HAS_NAME_ARG)

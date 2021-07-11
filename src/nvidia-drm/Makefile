@@ -68,12 +68,12 @@ CFLAGS += -I${SYSDIR}/sys
 CFLAGS += -g -I/usr/include -I../common/inc -O0 -Wno-visibility
 # FreeBSD linuxkpi specific headers
 CFLAGS += \
-        -I/home/ashafer/git/kms-drm/linuxkpi/gplv2/include/ \
+        -I/home/ashafer/git/drm-kmod/linuxkpi/gplv2/include/ \
         -I/usr/src/sys/compat/linuxkpi/common/include/ \
-        -I/home/ashafer/git/kms-drm/linuxkpi/dummy/include/ \
-        -I/home/ashafer/git/kms-drm/include/ \
-        -I/home/ashafer/git/kms-drm/include/uapi/ \
-        -I/home/ashafer/git/kms-drm/drivers/gpu/
+        -I/home/ashafer/git/drm-kmod/linuxkpi/dummy/include/ \
+        -I/home/ashafer/git/drm-kmod/include/ \
+        -I/home/ashafer/git/drm-kmod/include/uapi/ \
+        -I/home/ashafer/git/drm-kmod/drivers/gpu/
 
 # make sure /usr/include is before all the other includes
 #CFLAGS = "-I/usr/include/ $CFLAGS"
