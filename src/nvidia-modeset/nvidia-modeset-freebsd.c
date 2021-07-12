@@ -763,7 +763,7 @@ struct nvkms_per_open *nvkms_open_common(enum NvKmsClientType type,
 
     *status = 0;
 
-    printf("nvkms_open_common: return 0x%x\n", (unsigned int)popen);
+    //printf("nvkms_open_common: return 0x%x\n", popen);
     return popen;
 
 failed:

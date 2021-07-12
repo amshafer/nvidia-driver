@@ -67,20 +67,21 @@
 
 #else
 
-/* drm includes */
 #include <sys/types.h>
-#include <sys/nv.h>
-#include <linux/rbtree.h>
-#include <drm/drm_gem.h>
-
 /*
  * sys/nv.h and nvidia/nv.h have the same header guard
  * we need to clear it for nvlist_t  to get loaded
  */
 #undef _NV_H_
 #include <sys/nv.h>
-#include <drm/drm_encoder.h>
 
+/* drm includes */
+#include <linux/ktime.h>
+#include <linux/stringify.h>
+#include <linux/rbtree.h>
+#include <drm/drm_gem.h>
+
+#include <drm/drm_encoder.h>
 #include <linux/idr.h>
 #include <drm/drm_auth.h>
 #define NV_VM_FAULT_T_IS_PRESENT

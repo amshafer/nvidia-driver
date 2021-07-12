@@ -20,21 +20,26 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-/* have to be done first before the LIST_HEAD linux version */
 #ifndef __linux__
+
+/* 
+ * include the FreeBSD structures (nvidia_softc)
+ * have to grab it from src/nvidia/nv-freebsd.h
+ *
+ * have to be done first before the LIST_HEAD linux version
+ */
+#include "nvmisc.h"
+#define NVRM
+#include "../nvidia/nv.h"
+#include "../nvidia/nv-freebsd.h"
+
+/* undef BIT, since it was just identically defined in nvmisc.h */
+#undef BIT
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/err.h>
 
-/* 
- * include the FreeBSD structures (nvidia_softc)
- *  have to grab it from src/nvidia/nv-freebsd.h
- */
-#include "nvmisc.h"
 #include "../nvidia/os-interface.h"
-#define NVRM
-#include "../nvidia/nv.h"
-#include "../nvidia/nv-freebsd.h"
 #endif
 
 #include "nvidia-drm-os-interface.h"
@@ -52,6 +57,9 @@
 #include "nvidia-drm-priv.h"
 #endif
 
+#ifndef __linux__
+SYSCTL_DECL(_hw_nvidiadrm);
+#endif
 MODULE_PARM_DESC(
     modeset,
     "Enable atomic kernel modesetting (1 = enable, 0 = disable (default))");

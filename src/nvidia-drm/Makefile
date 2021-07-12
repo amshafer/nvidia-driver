@@ -66,30 +66,38 @@ CFLAGS += -Imachine
 CFLAGS += -I${SYSDIR}/sys
 
 CFLAGS += -g -I/usr/include -I../common/inc -O0 -Wno-visibility
-# FreeBSD linuxkpi specific headers
-CFLAGS += \
-        -I/home/ashafer/git/drm-kmod/linuxkpi/gplv2/include/ \
-        -I/usr/src/sys/compat/linuxkpi/common/include/ \
-        -I/home/ashafer/git/drm-kmod/linuxkpi/dummy/include/ \
-        -I/home/ashafer/git/drm-kmod/include/ \
-        -I/home/ashafer/git/drm-kmod/include/uapi/ \
-        -I/home/ashafer/git/drm-kmod/drivers/gpu/
 
 # make sure /usr/include is before all the other includes
 #CFLAGS = "-I/usr/include/ $CFLAGS"
 
-CFLAGS += -DNV_VERSION_STRING=\"440.82\"
+CFLAGS += -DNV_VERSION_STRING=\"470.42\"
 
 include ../common/optional-cflags.mk
 
 # we need to get the linux kpi headers for compilation. BSDSRCTOP
 # is the top of a FreeBSD src tree (or empty to use /sys)
-BSDSRCTOP=/usr/src
-CFLAGS+= -I${BSDSRCTOP}/sys/compat/linuxkpi/common/include
-CFLAGS+= -I${BSDSRCTOP}/sys/contrib/ck/include
+BSDSRCTOP=/usr/freebsd-src
+# FreeBSD linuxkpi specific headers
+# This is the path at which https://github.com/freebsd/drm-kmod is installed
+DRMKMODDIR=/opt/mick/git/drm-kmod
+CFLAGS += \
+        -I${DRMKMODDIR}/linuxkpi/gplv2/include/ \
+        -I${SYSDIR}/compat/linuxkpi/common/include/ \
+        -I${DRMKMODDIR}/linuxkpi/dummy/include/ \
+        -I${DRMKMODDIR}/include/ \
+        -I${DRMKMODDIR}/include/uapi/ \
+        -I${DRMKMODDIR}/drivers/gpu/ \
+		-I${BSDSRCTOP}/sys/contrib/ck/include
+
+# This is some magic that the linuxkpi drm code expects. This is the magic
+# name for the top sysctl for drm module parameters, usually defined to
+# be hw.${KMOD}. The parsing doesn't like seeing a '-' in a name, so we
+# use nvidiadrm instead of nvidia-drm
+CFLAGS+= -DDRM_SYSCTL_PARAM_PREFIX=_nvidiadrm
 
 # add src/nvidia as we need headers from there for nvidia_softc
 # we use the softc to get the device_t during probing
 CFLAGS+= -I../nvidia/
 
 .include <bsd.kmod.mk>
+
