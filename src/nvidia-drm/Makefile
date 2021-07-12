@@ -16,12 +16,14 @@ SRCS += \
         opt_stack.h
 
 SRCS += \
-	nvidia-dma-fence-helper.h \
+	nvidia-drm-conftest.h \
 	nvidia-drm-connector.h \
 	nvidia-drm-crtc.h \
 	nvidia-drm-drv.h \
 	nvidia-drm-encoder.h \
 	nvidia-drm-fb.h \
+	nvidia-drm-format.h \
+	nvidia-drm-gem-dma-buf.h \
 	nvidia-drm-gem-nvkms-memory.h \
 	nvidia-drm-gem-user-memory.h \
 	nvidia-drm-gem.h \
@@ -36,20 +38,23 @@ SRCS += \
 
 SRCS += \
 	nvidia-drm-connector.c \
-	nv-pci-table.c \
 	nvidia-drm-crtc.c \
 	nvidia-drm-drv.c \
 	nvidia-drm-encoder.c \
 	nvidia-drm-fb.c \
+	nvidia-drm-format.c \
+	nvidia-drm-freebsd-lkpi.c \
+	nvidia-drm-gem-dma-buf.c \
 	nvidia-drm-gem-nvkms-memory.c \
 	nvidia-drm-gem-user-memory.c \
 	nvidia-drm-gem.c \
 	nvidia-drm-helper.c \
-	nvidia-drm-freebsd-lkpi.c \
+	nvidia-drm-linux.c \
 	nvidia-drm-modeset.c \
 	nvidia-drm-prime-fence.c \
 	nvidia-drm-utils.c \
 	nvidia-drm.c
+
 
 KMOD = nvidia-drm
 
