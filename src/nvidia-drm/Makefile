@@ -49,7 +49,6 @@ SRCS += \
 	nvidia-drm-gem-user-memory.c \
 	nvidia-drm-gem.c \
 	nvidia-drm-helper.c \
-	nvidia-drm-linux.c \
 	nvidia-drm-modeset.c \
 	nvidia-drm-prime-fence.c \
 	nvidia-drm-utils.c \
