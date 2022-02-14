@@ -140,7 +140,11 @@ __nv_drm_prime_fence_signal(struct nv_drm_prime_fence *nv_fence)
 static void nv_drm_gem_prime_force_fence_signal(
     struct nv_drm_fence_context *nv_fence_context)
 {
+#ifdef __linux__
     WARN_ON(!spin_is_locked(&nv_fence_context->lock));
+#else
+    WARN_ON(!mtx_owned(&nv_fence_context->lock.m));
+#endif
 
     while (!list_empty(&nv_fence_context->pending)) {
         struct nv_drm_prime_fence *nv_fence = list_first_entry(
