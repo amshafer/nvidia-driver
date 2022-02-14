@@ -48,7 +48,7 @@ int nv_drm_init(void)
     return nv_drm_probe_devices();
 #else
     return 0;
-#endif
+#endif /* NV_DRM_AVAILABLE */
 }
 
 void nv_drm_exit(void)

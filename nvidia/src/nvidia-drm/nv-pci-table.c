@@ -27,25 +27,12 @@
 #include "nv-pci-table.h"
 
 /* Devices supported by RM */
-struct pci_device_id nv_pci_table[] = {
-    {
-        .vendor      = PCI_VENDOR_ID_NVIDIA,
-        .device      = PCI_ANY_ID,
-        .subvendor   = PCI_ANY_ID,
-        .subdevice   = PCI_ANY_ID,
-        .class       = (PCI_CLASS_DISPLAY_VGA << 8),
-        .class_mask  = ~0
-    },
-    {
-        .vendor      = PCI_VENDOR_ID_NVIDIA,
-        .device      = PCI_ANY_ID,
-        .subvendor   = PCI_ANY_ID,
-        .subdevice   = PCI_ANY_ID,
-        .class       = (PCI_CLASS_DISPLAY_3D << 8),
-        .class_mask  = ~0
-    },
-    { }
-};
+#ifndef __linux__
+#define PCI_VENDOR_ID_NVIDIA 0x10de
+#define PCI_CLASS_DISPLAY_3D 0x0302
+#define PCI_CLASS_MULTIMEDIA_OTHER 0x0480
+#define PCI_CLASS_BRIDGE_OTHER 0x0680
+#endif
 
 /* Devices supported by all drivers in nvidia.ko */
 struct pci_device_id nv_module_device_table[] = {
@@ -77,3 +64,6 @@ struct pci_device_id nv_module_device_table[] = {
 };
 
 MODULE_DEVICE_TABLE(pci, nv_module_device_table);
+#ifndef __linux__
+LKPI_PNP_INFO(pci, nvidia_drm, nv_module_device_table);
+#endif
