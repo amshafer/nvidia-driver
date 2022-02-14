@@ -31,6 +31,11 @@ int nv_drm_probe_devices(void);
 
 void nv_drm_remove_devices(void);
 
+/* the FreeBSD lpki probe function uses this in its probe */
+#ifndef __linux__
+void nv_drm_register_drm_device(const nv_gpu_info_t *);
+#endif
+
 #endif /* defined(NV_DRM_AVAILABLE) */
 
 #endif /* __NVIDIA_DRM_DRV_H__ */

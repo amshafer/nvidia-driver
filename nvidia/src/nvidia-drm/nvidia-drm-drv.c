@@ -22,6 +22,11 @@
 
 #include "nvidia-drm-conftest.h" /* NV_DRM_AVAILABLE and NV_DRM_DRM_GEM_H_PRESENT */
 
+#ifndef __linux__
+#include "nvidia-drm.h"
+#include <drm/drm.h>
+#endif
+
 #include "nvidia-drm-priv.h"
 #include "nvidia-drm-drv.h"
 #include "nvidia-drm-fb.h"
@@ -84,7 +89,7 @@
 #include <drm/drm_atomic_helper.h>
 #endif
 
-static struct nv_drm_device *dev_list = NULL;
+static struct nv_drm_device *nv_dev_list = NULL;
 
 static const char* nv_get_input_colorspace_name(
     enum NvKmsInputColorSpace colorSpace)
@@ -1421,7 +1426,7 @@ static struct drm_driver nv_drm_driver = {
  * kernel supports atomic modeset and the 'modeset' kernel module
  * parameter is true.
  */
-static void nv_drm_update_drm_driver_features(void)
+void nv_drm_update_drm_driver_features(void)
 {
 #if defined(NV_DRM_ATOMIC_MODESET_AVAILABLE)
 
@@ -1447,7 +1452,7 @@ static void nv_drm_update_drm_driver_features(void)
 /*
  * Helper function for allocate/register DRM device for given NVIDIA GPU ID.
  */
-static void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
+void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
 {
     struct nv_drm_device *nv_dev = NULL;
     struct drm_device *dev = NULL;
@@ -1486,7 +1491,11 @@ static void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
     nv_dev->dev = dev;
 
 #if defined(NV_DRM_DEVICE_HAS_PDEV)
+#ifdef __linux__
     if (device->bus == &pci_bus_type) {
+#else
+    if (devclass_find("pci")) {
+#endif
         dev->pdev = to_pci_dev(device);
     }
 #endif
@@ -1500,8 +1509,8 @@ static void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
 
     /* Add NVIDIA-DRM device into list */
 
-    nv_dev->next = dev_list;
-    dev_list = nv_dev;
+    nv_dev->next = nv_dev_list;
+    nv_dev_list = nv_dev;
 
     return; /* Success */
 
@@ -1517,6 +1526,7 @@ failed_drm_alloc:
 /*
  * Enumerate NVIDIA GPUs and allocate/register DRM device for each of them.
  */
+#ifdef __linux__
 int nv_drm_probe_devices(void)
 {
     nv_gpu_info_t *gpu_info = NULL;
@@ -1559,21 +1569,25 @@ done:
 
     return ret;
 }
+#endif
+
+struct pci_dev *nv_lkpi_pci_devs[NV_MAX_DEVICES];
 
 /*
  * Unregister all NVIDIA DRM devices.
  */
 void nv_drm_remove_devices(void)
 {
-    while (dev_list != NULL) {
-        struct nv_drm_device *next = dev_list->next;
+    while (nv_dev_list != NULL) {
+        struct nv_drm_device *next = nv_dev_list->next;
 
-        drm_dev_unregister(dev_list->dev);
-        nv_drm_dev_free(dev_list->dev);
+        /* check if we should free the drm_device->dev ?? aka the pci_dev from lkpi */
+        drm_dev_unregister(nv_dev_list->dev);
+        nv_drm_dev_free(nv_dev_list->dev);
 
-        nv_drm_free(dev_list);
+        nv_drm_free(nv_dev_list);
 
-        dev_list = next;
+        nv_dev_list = next;
     }
 }
 
