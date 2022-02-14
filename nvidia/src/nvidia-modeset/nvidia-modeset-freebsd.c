@@ -28,6 +28,8 @@
 #include <sys/proc.h>
 #include <sys/stack.h>
 #include <sys/sysproto.h>
+#include <sys/queue.h>
+#include <sys/mutex.h>
 
 #include "nvkms-ioctl.h"
 #include "nvidia-modeset-os-interface.h"
