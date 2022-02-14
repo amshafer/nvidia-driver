@@ -186,7 +186,11 @@ free:
     drm_atomic_state_put(state);
 #else
     if (ret != 0) {
+#ifdef __linux__
         drm_atomic_state_free(state);
+#else
+        drm_atomic_state_put(state);
+#endif
     } else {
         /*
          * In case of success, drm_atomic_commit() takes care to cleanup and

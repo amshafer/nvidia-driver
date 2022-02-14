@@ -35,6 +35,7 @@
 #include "linux/dma-buf.h"
 #include "linux/mm.h"
 #include "nv-mm.h"
+#include <vm/vm_pageout.h>
 
 static inline
 void __nv_drm_gem_user_memory_free(struct nv_drm_gem_object *nv_gem)
@@ -113,6 +114,67 @@ static vm_fault_t __nv_drm_gem_user_memory_handle_vma_fault(
     page_offset = vmf->pgoff - drm_vma_node_start(&gem->vma_node);
 
     BUG_ON(page_offset > nv_user_memory->pages_count);
+
+#ifndef __linux__
+    /*
+     * FreeBSD specific: find location to insert new page
+     *
+     * FreeBSD doesn't set pgoff. We instead have pfn be the base physical
+     * address, and we will calculate the index pidx from the virtual address.
+     *
+     * This only works because linux_cdev_pager_populate passes the pidx as
+     * vmf->virtual_address, which is stupid. Then we turn the virtual address
+     * into a physical page number, which is also stupid. The stupid cancels
+     * out and everything works.
+     */
+    unsigned long pfn = page_to_pfn(nv_user_memory->pages[page_offset]);
+    vm_pindex_t pidx = OFF_TO_IDX(address);
+    vm_object_t obj = vma->vm_obj;
+    vm_page_t page;
+
+    VM_OBJECT_WLOCK(obj);
+    for (;;) {
+        /*
+         * First we try to grab our page within the obj, getting it if it exists
+         * but don't allocate it if it doesn't.
+         */
+        page = vm_page_grab(obj, pidx, VM_ALLOC_NOCREAT);
+        if (!page) {
+            /* Now we create the page */
+            page = PHYS_TO_VM_PAGE(IDX_TO_OFF(pfn + pidx));
+            if (!page) {
+                VM_OBJECT_WUNLOCK(obj);
+                return VM_FAULT_SIGBUS;
+            }
+            /* try to busy it, if not restart this process */
+            if (!vm_page_busy_acquire(page, VM_ALLOC_WAITFAIL)) {
+                continue;
+            }
+            /* now we can insert the page in our object */
+            if (vm_page_insert(page, obj, pidx)) {
+                vm_page_xunbusy(page);
+                VM_OBJECT_WUNLOCK(obj);
+                               vm_wait(NULL);
+                               VM_OBJECT_WLOCK(obj);
+                continue;
+            }
+            vm_page_valid(page);
+        }
+        break;
+    }
+    VM_OBJECT_WUNLOCK(obj);
+
+    ret = VM_FAULT_NOPAGE;
+
+    /*
+     * linuxkpi will communicate to vm_fault_populate which pages to
+     * map into the address space based on vm_pfn_first and vm_pfn_count
+     *  (sys/compat/linuxkpi/common/src/linux_compat.c line 577)
+     * we only mapped one page at a time, the page we added was page pidx
+     */
+    vma->vm_pfn_first = pidx;
+    vma->vm_pfn_count = 1;
+#else /* !defined(__linux__) */
     ret = vm_insert_page(vma, address, nv_user_memory->pages[page_offset]);
     switch (ret) {
         case 0:
@@ -131,6 +193,7 @@ static vm_fault_t __nv_drm_gem_user_memory_handle_vma_fault(
             ret = VM_FAULT_SIGBUS;
             break;
     }
+#endif /* !defined(__linux__) */
 
     return ret;
 }
@@ -170,7 +233,11 @@ int nv_drm_gem_import_userspace_memory_ioctl(struct drm_device *dev,
     if ((params->size % PAGE_SIZE) != 0) {
         NV_DRM_DEV_LOG_ERR(
             nv_dev,
+#ifdef __linux__
             "Userspace memory 0x%llx size should be in a multiple of page "
+#else
+	    "Userspace memory 0x%lx size should be in a multiple of page "
+#endif
             "size to create a gem object",
             params->address);
         return -EINVAL;
@@ -183,7 +250,11 @@ int nv_drm_gem_import_userspace_memory_ioctl(struct drm_device *dev,
     if (ret != 0) {
         NV_DRM_DEV_LOG_ERR(
             nv_dev,
+#ifdef __linux__
             "Failed to lock user pages for address 0x%llx: %d",
+#else
+	    "Failed to lock user pages for address 0x%lx: %d",
+#endif
             params->address, ret);
         return ret;
     }

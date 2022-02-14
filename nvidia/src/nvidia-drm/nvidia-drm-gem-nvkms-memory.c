@@ -38,6 +38,7 @@
 
 #include <linux/io.h>
 
+#include <vm/vm_pageout.h>
 #include "nv-mm.h"
 
 static void __nv_drm_gem_nvkms_memory_free(struct nv_drm_gem_object *nv_gem)
@@ -93,12 +94,24 @@ static vm_fault_t __nv_drm_gem_nvkms_handle_vma_fault(
     if (nv_nvkms_memory->pages_count == 0) {
         pfn = (unsigned long)(uintptr_t)nv_nvkms_memory->pPhysicalAddress;
         pfn >>= PAGE_SHIFT;
+#ifdef __linux__
+        /*
+         * FreeBSD doesn't set pgoff. We instead have pfn be the base physical
+         * address, and we will calculate the index pidx from the virtual address.
+         *
+         * This only works because linux_cdev_pager_populate passes the pidx as
+         * vmf->virtual_address, which is stupid. Then we turn the virtual address
+         * into a physical page number, which is also stupid. The stupid cancels
+         * out and everything works.
+         */
         pfn += page_offset;
+#endif
     } else {
         BUG_ON(page_offset > nv_nvkms_memory->pages_count);
         pfn = page_to_pfn(nv_nvkms_memory->pages[page_offset]);
     }
 
+#ifdef __linux__
 #if defined(NV_VMF_INSERT_PFN_PRESENT)
     ret = vmf_insert_pfn(vma, address, pfn);
 #else
@@ -121,7 +134,57 @@ static vm_fault_t __nv_drm_gem_nvkms_handle_vma_fault(
             break;
     }
 #endif /* defined(NV_VMF_INSERT_PFN_PRESENT) */
+#else
+    /* FreeBSD specific: find location to insert new page */
+    vm_pindex_t pidx = OFF_TO_IDX(address);
+    vm_object_t obj = vma->vm_obj;
+    vm_page_t page;
+
+    VM_OBJECT_WLOCK(obj);
+    for (;;) {
+        /*
+         * First we try to grab our page within the obj, getting it if it exists
+         * but don't allocate it if it doesn't.
+         */
+        page = vm_page_grab(obj, pidx, VM_ALLOC_NOCREAT);
+        if (!page) {
+            /* Now we create the page */
+            page = PHYS_TO_VM_PAGE(IDX_TO_OFF(pfn + pidx));
+            if (!page) {
+                VM_OBJECT_WUNLOCK(obj);
+                return VM_FAULT_SIGBUS;
+            }
+            /* try to busy it, if not restart this process */
+            if (!vm_page_busy_acquire(page, VM_ALLOC_WAITFAIL)) {
+                continue;
+            }
+            /* now we can insert the page in our object */
+            if (vm_page_insert(page, obj, pidx)) {
+                vm_page_xunbusy(page);
+                VM_OBJECT_WUNLOCK(obj);
+				vm_wait(NULL);
+				VM_OBJECT_WLOCK(obj);
+                continue;
+            }
+            vm_page_valid(page);
+        }
+        break;
+    }
+    VM_OBJECT_WUNLOCK(obj);
+
+    ret = VM_FAULT_NOPAGE;
+
+    /*
+     * linuxkpi will communicate to vm_fault_populate which pages to
+     * map into the address space based on vm_pfn_first and vm_pfn_count
+     *  (sys/compat/linuxkpi/common/src/linux_compat.c line 577)
+     * we only mapped one page at a time, the page we added was page pidx
+     */
+    vma->vm_pfn_first = pidx;
+    vma->vm_pfn_count = 1;
     return ret;
+#endif /* __linux__ */
+        return ret;
 #endif /* defined(NV_DRM_ATOMIC_MODESET_AVAILABLE) */
     return VM_FAULT_SIGBUS;
 }
@@ -300,7 +363,11 @@ int nv_drm_dumb_create(
         ret = -ENOMEM;
         NV_DRM_DEV_LOG_ERR(
             nv_dev,
-            "Failed to allocate NvKmsKapiMemory for dumb object of size %llu",
+#ifdef __linux__
+	    "Failed to allocate NvKmsKapiMemory for dumb object of size %llu",
+#else
+	    "Failed to allocate NvKmsKapiMemory for dumb object of size %lu",
+#endif
             args->size);
         goto nvkms_alloc_memory_failed;
     }
@@ -319,6 +386,27 @@ int nv_drm_dumb_create(
         nv_drm_gem_object_unreference_unlocked(&nv_nvkms_memory->base);
         goto fail;
     }
+
+#ifndef __linux__
+    /*
+     * register the pages with the vm system
+     * These pages will be used to back
+     * fault requests. Pages are registered
+     * as PG_FICTITIOUS to signify device
+     * mapped memory
+     */
+    vm_paddr_t start = (vm_paddr_t)nv_nvkms_memory->pPhysicalAddress;
+    vm_paddr_t end = start + args->size;
+    NV_DRM_LOG_INFO("nv_drm_dumb_create: at 0x%jx with size 0x%lx.\n", start, end);
+
+    ret = vm_phys_fictitious_reg_range(start, end, VM_MEMATTR_WRITE_COMBINING);
+    if (ret) {
+	    NV_DRM_LOG_INFO("Failed to register fictitious range 0x%jx-0x%lx (error = %d).\n",
+			    start, end, ret);
+        nv_drm_gem_object_unreference_unlocked(&nv_nvkms_memory->base);
+        goto fail;
+    }
+#endif
 
     return nv_drm_gem_handle_create_drop_reference(file_priv,
                                                    &nv_nvkms_memory->base,
