@@ -23,7 +23,17 @@
 #ifndef __NV_MM_H__
 #define __NV_MM_H__
 
+#ifdef __linux__
 #include "conftest.h"
+#else
+#include <linux/rwsem.h>
+#include <sys/param.h>
+#include <sys/lock.h>
+#include <sys/sx.h>
+
+#define rwsem_is_locked(sem) (((sem)->sx.sx_lock & (SX_LOCK_SHARED)) \
+                              || ((sem)->sx.sx_lock & ~(SX_LOCK_FLAGMASK & ~SX_LOCK_SHARED)))
+#endif
 
 #if !defined(NV_VM_FAULT_T_IS_PRESENT)
 typedef int vm_fault_t;

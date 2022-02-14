@@ -240,7 +240,11 @@ struct drm_framebuffer *nv_drm_internal_framebuffer_create(
         if (nv_dev->modifiers[i] == DRM_FORMAT_MOD_INVALID) {
             NV_DRM_DEV_DEBUG_DRIVER(
                 nv_dev,
+#ifdef __linux__
                 "Invalid format modifier for framebuffer object: 0x%016llx",
+#else
+                "Invalid format modifier for framebuffer object: 0x%016lx",
+#endif
                 modifier);
             return ERR_PTR(-EINVAL);
         }
