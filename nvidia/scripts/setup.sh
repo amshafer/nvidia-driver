@@ -64,6 +64,3 @@ unload_module "nvidia"
 load_module "nvidia"
 load_module "nvidia-modeset"
 
-load_module_on_boot "nvidia" "nvidia"
-load_module_on_boot "nvidia_modeset" "nvidia-modeset"
-
