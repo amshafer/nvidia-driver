@@ -23,7 +23,10 @@
 #ifndef __NVIDIA_DRM_CONFTEST_H__
 #define __NVIDIA_DRM_CONFTEST_H__
 
-#include "conftest.h"
+#include "conftest/type.h"
+#include "conftest/function.h"
+#include "conftest/generic.h"
+#include "conftest/headers.h"
 
 /*
  * NOTE: This file is expected to get included at the top before including any
@@ -60,5 +63,53 @@
 #else
 #undef NV_DRM_FENCE_AVAILABLE
 #endif
+
+/*
+ * Now for the FreeBSD specific stuff
+ */
+#ifndef __linux__
+
+#include <sys/types.h>
+/*
+ * sys/nv.h and nvidia/nv.h have the same header guard
+ * we need to clear it for nvlist_t  to get loaded
+ */
+#undef _NV_H_
+#include <sys/nv.h>
+
+/* drm includes */
+#include <linux/ktime.h>
+#include <linux/stringify.h>
+#include <linux/rbtree.h>
+#include <drm/drm_gem.h>
+
+#include <drm/drm_encoder.h>
+#include <linux/idr.h>
+#include <drm/drm_auth.h>
+
+/*
+ * FreeBSD does not define vm_flags_t in its linuxkpi, since there is already
+ * a FreeBSD vm_flags_t (of a different size) and they don't want the names to
+ * collide.
+ */
+#define vm_flags_t unsigned long
+#include "nv-mm.h"
+#undef vm_flags_t
+
+#include <linux/mm.h>
+#include <vm/vm_phys.h>
+
+#include <linux/list.h>
+/* redefine LIST_HEAD_INIT to the linux version */
+#define LIST_HEAD_INIT(name) LINUX_LIST_HEAD_INIT(name)
+
+/*
+ * For now just use set_page_dirty as the lock variant
+ * is not ported for FreeBSD. (in progress). This calls
+ * vm_page_dirty
+ */
+#define set_page_dirty_lock set_page_dirty
+
+#endif /* defined(__linux__) */
 
 #endif /* defined(__NVIDIA_DRM_CONFTEST_H__) */
