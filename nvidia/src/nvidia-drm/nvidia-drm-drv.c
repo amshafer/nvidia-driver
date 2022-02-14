@@ -22,6 +22,11 @@
 
 #include "nvidia-drm-conftest.h" /* NV_DRM_AVAILABLE and NV_DRM_DRM_GEM_H_PRESENT */
 
+#ifndef __linux__
+#include "nvidia-drm.h"
+#include <drm/drm.h>
+#endif
+
 #include "nvidia-drm-priv.h"
 #include "nvidia-drm-drv.h"
 #include "nvidia-drm-fb.h"
@@ -1436,7 +1441,7 @@ static struct drm_driver nv_drm_driver = {
  * kernel supports atomic modeset and the 'modeset' kernel module
  * parameter is true.
  */
-static void nv_drm_update_drm_driver_features(void)
+void nv_drm_update_drm_driver_features(void)
 {
 #if defined(NV_DRM_ATOMIC_MODESET_AVAILABLE)
 
@@ -1462,7 +1467,7 @@ static void nv_drm_update_drm_driver_features(void)
 /*
  * Helper function for allocate/register DRM device for given NVIDIA GPU ID.
  */
-static void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
+void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
 {
     struct nv_drm_device *nv_dev = NULL;
     struct drm_device *dev = NULL;
@@ -1501,7 +1506,11 @@ static void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
     nv_dev->dev = dev;
 
 #if defined(NV_DRM_DEVICE_HAS_PDEV)
+#ifdef __linux__
     if (device->bus == &pci_bus_type) {
+#else
+    if (devclass_find("pci")) {
+#endif
         dev->pdev = to_pci_dev(device);
     }
 #endif
@@ -1532,6 +1541,7 @@ failed_drm_alloc:
 /*
  * Enumerate NVIDIA GPUs and allocate/register DRM device for each of them.
  */
+#ifdef __linux__
 int nv_drm_probe_devices(void)
 {
     nv_gpu_info_t *gpu_info = NULL;
@@ -1574,6 +1584,9 @@ done:
 
     return ret;
 }
+#endif
+
+struct pci_dev *nv_lkpi_pci_devs[NV_MAX_DEVICES];
 
 /*
  * Unregister all NVIDIA DRM devices.
