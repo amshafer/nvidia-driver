@@ -333,7 +333,14 @@ void   nv_unlock_api         (nv_state_t *);
         (obj) = NULL;                   \
     }
 
-#if __FreeBSD_version >= 1200083
+#if __FreeBSD_version >= 1400070
+#define NV_KMEM_ALLOC_CONTIG(size, flags, low, high, align, boundary, memattr) \
+    ((vm_offset_t)kmem_alloc_contig(size, flags, low, high, align, boundary, memattr))
+
+#define NV_KMEM_FREE(address, size) \
+    kmem_free((void *)address, size)
+
+#elif __FreeBSD_version >= 1200083
 #define NV_KMEM_ALLOC_CONTIG(size, flags, low, high, align, boundary, memattr) \
     kmem_alloc_contig(size, flags, low, high, align, boundary, memattr)
 
