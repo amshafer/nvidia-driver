@@ -338,7 +338,11 @@ static driver_t nvidia_pci_driver = {
     sizeof(struct nvidia_softc)
 };
 
+#if __FreeBSD_version >= 1400058
+DRIVER_MODULE(nvidia, vgapci, nvidia_pci_driver, nvidia_modevent, 0);
+#else
 DRIVER_MODULE(nvidia, vgapci, nvidia_pci_driver, nvidia_devclass, nvidia_modevent, 0);
+#endif
 MODULE_VERSION(nvidia, 1);
 
 MODULE_DEPEND(nvidia, mem, 1, 1, 1);
