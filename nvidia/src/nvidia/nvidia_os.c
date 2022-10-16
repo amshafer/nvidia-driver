@@ -282,7 +282,15 @@ void NV_API_CALL os_unmap_kernel_space(
     NvU64 size
 )
 {
+    /*
+     * As of this FreeBSD version this function accepts a pointer value
+     * instead of casting it to a vm offset.
+     */
+#if __FreeBSD_version >= 1400070
+    pmap_unmapdev(address, size);
+#else
     pmap_unmapdev((vm_offset_t)address, size);
+#endif
 }
 
 void* NV_API_CALL os_map_user_space(
