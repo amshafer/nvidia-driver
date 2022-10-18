@@ -934,7 +934,7 @@ static void nv_drm_update_drm_driver_features(void)
 /*
  * Helper function for allocate/register DRM device for given NVIDIA GPU ID.
  */
-static void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
+void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
 {
     struct nv_drm_device *nv_dev = NULL;
     struct drm_device *dev = NULL;
