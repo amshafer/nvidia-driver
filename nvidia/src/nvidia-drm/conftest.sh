@@ -14,6 +14,12 @@ OUTPUT=$4
 XEN_PRESENT=1
 PREEMPT_RT_PRESENT=0
 
+OS=`uname -s`
+OS_FREEBSD=0
+if [ "$OS" = "FreeBSD" ] ; then
+    OS_FREEBSD=1
+fi
+
 # VGX_BUILD parameter defined only for VGX builds (vGPU Host driver)
 # VGX_KVM_BUILD parameter defined only vGPU builds on KVM hypervisor
 # GRID_BUILD parameter defined only for GRID builds (GRID Guest driver)
@@ -201,6 +207,7 @@ build_cflags() {
     fi
 }
 
+if [ ${OS_FREEBSD} -neq 1 ] ; then
 CONFTEST_PREAMBLE="#include \"conftest/headers.h\"
     #if defined(NV_LINUX_KCONFIG_H_PRESENT)
     #include <linux/kconfig.h>
@@ -221,6 +228,9 @@ CONFTEST_PREAMBLE="#include \"conftest/headers.h\"
     #define KASAN_SHADOW_SCALE_SHIFT 3
     #endif
     #endif"
+else
+CONFTEST_PREAMBLE="#include \"conftest/headers.h\""
+fi
 
 test_configuration_option() {
     #
@@ -1174,7 +1184,7 @@ compile_test() {
             #include <drm/drm_drv.h>
             #endif
 
-            #if !defined(CONFIG_DRM) && !defined(CONFIG_DRM_MODULE)
+            #if !defined(CONFIG_DRM) && !defined(CONFIG_DRM_MODULE) && !defined(__FreeBSD__)
             #error DRM not enabled
             #endif
 
@@ -1641,7 +1651,7 @@ compile_test() {
             #include <drm/drmP.h>
             #endif
             #include <drm/drm_atomic.h>
-            #if !defined(CONFIG_DRM) && !defined(CONFIG_DRM_MODULE)
+            #if !defined(CONFIG_DRM) && !defined(CONFIG_DRM_MODULE) && !defined(__FreeBSD__)
             #error DRM not enabled
             #endif
             void conftest_drm_atomic_modeset_available(void) {
@@ -2108,11 +2118,8 @@ compile_test() {
             #
             echo "$CONFTEST_PREAMBLE
             #include <drm/drm_crtc_helper.h>
-            void drm_helper_mode_fill_fb_struct(struct drm_device *dev,
-                                                struct drm_framebuffer *fb,
-                                                const struct drm_mode_fb_cmd2 *mode_cmd)
-            {
-                return;
+            void conftest_drm_helper_mode_fill_fb_struct() {
+                drm_helper_mode_fill_fb_struct(NULL, NULL, NULL);
             }" > conftest$$.c;
 
             $CC $CFLAGS -c conftest$$.c > /dev/null 2>&1
@@ -2135,10 +2142,8 @@ compile_test() {
                 #
                 echo "$CONFTEST_PREAMBLE
                 #include <drm/drm_crtc_helper.h>
-                void drm_helper_mode_fill_fb_struct(struct drm_framebuffer *fb,
-                                                    const struct drm_mode_fb_cmd2 *mode_cmd)
-                {
-                    return;
+                void conftest_drm_helper_mode_fill_fb_struct() {
+                    drm_helper_mode_fill_fb_struct(NULL, NULL);
                 }" > conftest$$.c;
 
                 $CC $CFLAGS -c conftest$$.c > /dev/null 2>&1
@@ -2254,13 +2259,8 @@ compile_test() {
 
             echo "$CONFTEST_PREAMBLE
             #include <linux/mm.h>
-            long get_user_pages(unsigned long start,
-                                unsigned long nr_pages,
-                                int write,
-                                int force,
-                                struct page **pages,
-                                struct vm_area_struct **vmas) {
-                return 0;
+            void conftest_get_user_pages() {
+                get_user_pages(0, 0, 0, 0, NULL, NULL);
             }" > conftest$$.c
 
             $CC $CFLAGS -c conftest$$.c > /dev/null 2>&1
@@ -2279,12 +2279,8 @@ compile_test() {
 
             echo "$CONFTEST_PREAMBLE
             #include <linux/mm.h>
-            long get_user_pages(unsigned long start,
-                                unsigned long nr_pages,
-                                unsigned int gup_flags,
-                                struct page **pages,
-                                struct vm_area_struct **vmas) {
-                return 0;
+            void conftest_get_user_pages() {
+                get_user_pages(0, 0, 0, NULL, NULL);
             }" > conftest$$.c
 
             $CC $CFLAGS -c conftest$$.c > /dev/null 2>&1
@@ -2304,14 +2300,8 @@ compile_test() {
 
             echo "$CONFTEST_PREAMBLE
             #include <linux/mm.h>
-            long get_user_pages(struct task_struct *tsk,
-                                struct mm_struct *mm,
-                                unsigned long start,
-                                unsigned long nr_pages,
-                                unsigned int gup_flags,
-                                struct page **pages,
-                                struct vm_area_struct **vmas) {
-                return 0;
+            void conftest_get_user_pages() {
+                get_user_pages(NULL, NULL, 0, 0, 0, NULL, NULL);
             }" > conftest$$.c
 
             $CC $CFLAGS -c conftest$$.c > /dev/null 2>&1
@@ -2444,7 +2434,7 @@ compile_test() {
                                        struct mm_struct *mm,
                                        unsigned long start,
                                        unsigned long nr_pages,
-                                       unsigned int gpu_flags,
+                                       int gpu_flags,
                                        struct page **pages,
                                        struct vm_area_struct **vmas) {
                 return 0;
@@ -2470,7 +2460,7 @@ compile_test() {
                                        struct mm_struct *mm,
                                        unsigned long start,
                                        unsigned long nr_pages,
-                                       unsigned int gup_flags,
+                                       int gup_flags,
                                        struct page **pages,
                                        struct vm_area_struct **vmas,
                                        int *locked) {
@@ -2495,7 +2485,7 @@ compile_test() {
             long get_user_pages_remote(struct mm_struct *mm,
                                        unsigned long start,
                                        unsigned long nr_pages,
-                                       unsigned int gup_flags,
+                                       int gup_flags,
                                        struct page **pages,
                                        struct vm_area_struct **vmas,
                                        int *locked) {
@@ -3626,7 +3616,9 @@ compile_test() {
             #
             CODE="
             #include <linux/mm.h>
-            vm_fault_t conftest_vm_fault_t;
+            void test_vm_fault_t() {
+                vm_fault_t conftest_vm_fault_t;
+            }
             "
             compile_check_conftest "$CODE" "NV_VM_FAULT_T_IS_PRESENT" "" "types"
         ;;
