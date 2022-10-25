@@ -378,7 +378,7 @@ struct nvkms_timer_t {
  * Global list with pending timers, any change requires acquiring lock
  */
 static struct {
-    struct sx lock;
+    struct mtx lock;
     LIST_HEAD(nvkms_timers_head, nvkms_timer_t) list;
 } nvkms_timers;
 
@@ -391,9 +391,9 @@ static void nvkms_taskqueue_callback(void *arg, int pending)
      * We can delete this timer from pending timers list - it's being
      * processed now.
      */
-    sx_xlock(&nvkms_timers.lock);
+    mtx_lock_spin(&nvkms_timers.lock);
     LIST_REMOVE(timer, timers_list);
-    sx_xunlock(&nvkms_timers.lock);
+    mtx_unlock_spin(&nvkms_timers.lock);
 
     /*
      * After taskqueue_callback we want to be sure that callout_callback
@@ -461,7 +461,7 @@ nvkms_init_timer(struct nvkms_timer_t *timer, nvkms_timer_proc_t *proc,
      * run in parallel with this, it could race against nvkms_init_timer()
      * and free the timer before its initialization is complete.
      */
-    sx_xlock(&nvkms_timers.lock);
+    mtx_lock_spin(&nvkms_timers.lock);
     LIST_INSERT_HEAD(&nvkms_timers.list, timer, timers_list);
 
     if (usec == 0) {
@@ -475,7 +475,7 @@ nvkms_init_timer(struct nvkms_timer_t *timer, nvkms_timer_proc_t *proc,
                       NVKMS_USECS_TO_TICKS(usec),
                       nvkms_callout_callback, (void *) timer);
     }
-    sx_xunlock(&nvkms_timers.lock);
+    mtx_unlock_spin(&nvkms_timers.lock);
 }
 
 nvkms_timer_handle_t*
@@ -1038,7 +1038,7 @@ nvidia_modeset_loader(struct module *m, int what, void *arg)
         nvkms_module.is_unloading = NV_FALSE;
 
         LIST_INIT(&nvkms_timers.list);
-        sx_init(&nvkms_timers.lock, "nvidia-modeset timer lock");
+        mtx_init(&nvkms_timers.lock, "nvidia-modeset timer lock", NULL, MTX_SPIN);
 
         nvkms_dev = make_dev(&nvkms_cdevsw,
                              NVKMS_CDEV_MINOR,
@@ -1047,7 +1047,7 @@ nvidia_modeset_loader(struct module *m, int what, void *arg)
 
         if (nvkms_dev == NULL) {
             sx_destroy(&nvkms_module.lock);
-            sx_destroy(&nvkms_timers.lock);
+            mtx_destroy(&nvkms_timers.lock);
             sx_destroy(&nvkms_lock);
 
             nvkms_free_rm();
@@ -1116,7 +1116,7 @@ nvidia_modeset_loader(struct module *m, int what, void *arg)
          * nvkms_taskqueue_callback() doesn't get called after the
          * module is unloaded.
          */
-        sx_xlock(&nvkms_timers.lock);
+        mtx_lock_spin(&nvkms_timers.lock);
 
         LIST_FOREACH_SAFE(timer, &nvkms_timers.list, timers_list, tmp) {
             if (timer->callout_created) {
@@ -1138,7 +1138,7 @@ nvidia_modeset_loader(struct module *m, int what, void *arg)
             }
         }
 
-        sx_xunlock(&nvkms_timers.lock);
+        mtx_unlock_spin(&nvkms_timers.lock);
 
         taskqueue_run(taskqueue_nvkms);
 
@@ -1146,7 +1146,7 @@ nvidia_modeset_loader(struct module *m, int what, void *arg)
         nvkms_dev = NULL;
 
         sx_destroy(&nvkms_module.lock);
-        sx_destroy(&nvkms_timers.lock);
+        mtx_destroy(&nvkms_timers.lock);
         sx_destroy(&nvkms_lock);
 
         nvkms_free_rm();
