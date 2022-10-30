@@ -1,0 +1,1073 @@
+From c3c3bc480549a7e32a630aff417a2afdeaf3c7db Mon Sep 17 00:00:00 2001
+From: Austin Shafer <ashafer@nvidia.com>
+Date: Sun, 13 Feb 2022 20:27:07 -0500
+Subject: [PATCH 7/8] nvidia-drm: Add support for FreeBSD
+
+This is the actual source changes needed to make FreeBSD work. It's
+written in the style of the drm-kmod port, where FreeBSD changes
+are in ifdefs next to the original linux code.
+---
+ .../arch/nvalloc/unix/FreeBSD/nv-freebsd.h    |   1 -
+ .../arch/nvalloc/unix/FreeBSD/nvidia_pci.c    |   1 +
+ .../resman/arch/nvalloc/unix/Linux/nv-mm.h    |  10 +
+ .../arch/nvalloc/unix/Linux/nv-pci-table.c    |  28 +--
+ .../arch/nvalloc/unix/Linux/nv-pci-table.h    |   2 +-
+ .../nvidia-drm/Linux/nvidia-drm-conftest.h    |  44 +++-
+ .../unix/nvidia-drm/common/nvidia-drm-crtc.c  |  13 +-
+ .../unix/nvidia-drm/common/nvidia-drm-drv.c   |  36 ++-
+ .../unix/nvidia-drm/common/nvidia-drm-fb.c    |   4 +
+ .../unix/nvidia-drm/common/nvidia-drm-fence.c |   4 +
+ .../common/nvidia-drm-freebsd-lkpi.c          | 236 ++++++++++++++++++
+ .../common/nvidia-drm-gem-dma-buf.c           |  32 +++
+ .../common/nvidia-drm-gem-nvkms-memory.c      |  90 ++++++-
+ .../common/nvidia-drm-gem-user-memory.c       |  75 +++++-
+ .../nvidia-drm/common/nvidia-drm-helper.c     |   4 +
+ nvidia/src/nvidia-drm/nvidia-drm.c   |   2 +-
+ .../unix/nvidia-drm/include/nvidia-drm-drv.h  |   5 +
+ nvidia/src/nvidia-drm/include/nvidia-drm.h  |  47 ++++
+ .../include/uapi/nvidia-drm-ioctl.h           |   2 +-
+ .../FreeBSD/nvidia-modeset-freebsd.c          |   2 +
+ .../include/nvidia-modeset-os-interface.h     |   7 +
+ 21 files changed, 603 insertions(+), 42 deletions(-)
+ create mode 100644 nvidia/src/nvidia-drm/nvidia-drm-freebsd-lkpi.c
+
+diff --git a/nvidia/src/nvidia/nv-freebsd.h b/nvidia/src/nvidia/nv-freebsd.h
+index 2f081dce009..4d5daeab4fc 100644
+--- a/nvidia/src/nvidia/nv-freebsd.h
++++ b/nvidia/src/nvidia/nv-freebsd.h
+@@ -14,7 +14,6 @@
+ #include <sys/param.h>
+ 
+ #if __FreeBSD_version >= 1400000
+-#error This driver does not support FreeBSD 14.x/-CURRENT!
+ #endif
+ #if __FreeBSD_version >= 1300000 && __FreeBSD_version < 1300139
+ #error This driver requires FreeBSD 13.0-RC1 or later!
+diff --git a/nvidia/src/nvidia/nvidia_pci.c b/nvidia/src/nvidia/nvidia_pci.c
+index 3b5d0952003..0a9331c902e 100644
+--- a/nvidia/src/nvidia/nvidia_pci.c
++++ b/nvidia/src/nvidia/nvidia_pci.c
+@@ -347,6 +347,7 @@ MODULE_VERSION(nvidia, 1);
+ 
+ MODULE_DEPEND(nvidia, mem, 1, 1, 1);
+ MODULE_DEPEND(nvidia, io, 1, 1, 1);
++MODULE_DEPEND(nvidia, drmn, 2, 2, 2);
+ 
+ #ifdef NV_SUPPORT_LINUX_COMPAT /* (COMPAT_LINUX || COMPAT_LINUX32) */
+ MODULE_DEPEND(nvidia, linux, 1, 1, 1);
+diff --git a/nvidia/src/common/inc/nv-mm.h b/nvidia/src/common/inc/nv-mm.h
+index 44b2bdc3c0d..dd3461e01a7 100644
+--- a/nvidia/src/common/inc/nv-mm.h
++++ b/nvidia/src/common/inc/nv-mm.h
+@@ -23,7 +23,17 @@
+ #ifndef __NV_MM_H__
+ #define __NV_MM_H__
+ 
++#ifdef __linux__
+ #include "conftest.h"
++#else
++#include <linux/rwsem.h>
++#include <sys/param.h>
++#include <sys/lock.h>
++#include <sys/sx.h>
++
++#define rwsem_is_locked(sem) (((sem)->sx.sx_lock & (SX_LOCK_SHARED)) \
++                              || ((sem)->sx.sx_lock & ~(SX_LOCK_FLAGMASK & ~SX_LOCK_SHARED)))
++#endif
+ 
+ #if !defined(NV_VM_FAULT_T_IS_PRESENT)
+ typedef int vm_fault_t;
+diff --git a/nvidia/src/nvidia-drm/nv-pci-table.c b/nvidia/src/nvidia-drm/nv-pci-table.c
+index e3494735a5f..33ff182f856 100644
+--- a/nvidia/src/nvidia-drm/nv-pci-table.c
++++ b/nvidia/src/nvidia-drm/nv-pci-table.c
+@@ -27,25 +27,12 @@
+ #include "nv-pci-table.h"
+ 
+ /* Devices supported by RM */
+-struct pci_device_id nv_pci_table[] = {
+-    {
+-        .vendor      = PCI_VENDOR_ID_NVIDIA,
+-        .device      = PCI_ANY_ID,
+-        .subvendor   = PCI_ANY_ID,
+-        .subdevice   = PCI_ANY_ID,
+-        .class       = (PCI_CLASS_DISPLAY_VGA << 8),
+-        .class_mask  = ~0
+-    },
+-    {
+-        .vendor      = PCI_VENDOR_ID_NVIDIA,
+-        .device      = PCI_ANY_ID,
+-        .subvendor   = PCI_ANY_ID,
+-        .subdevice   = PCI_ANY_ID,
+-        .class       = (PCI_CLASS_DISPLAY_3D << 8),
+-        .class_mask  = ~0
+-    },
+-    { }
+-};
++#ifndef __linux__
++#define PCI_VENDOR_ID_NVIDIA 0x10de
++#define PCI_CLASS_DISPLAY_3D 0x0302
++#define PCI_CLASS_MULTIMEDIA_OTHER 0x0480
++#define PCI_CLASS_BRIDGE_OTHER 0x0680
++#endif
+ 
+ /* Devices supported by all drivers in nvidia.ko */
+ struct pci_device_id nv_module_device_table[] = {
+@@ -77,3 +64,6 @@ struct pci_device_id nv_module_device_table[] = {
+ };
+ 
+ MODULE_DEVICE_TABLE(pci, nv_module_device_table);
++#ifndef __linux__
++LKPI_PNP_INFO(pci, nvidia_drm, nv_module_device_table);
++#endif
+diff --git a/nvidia/src/nvidia-drm/nv-pci-table.h b/nvidia/src/nvidia-drm/nv-pci-table.h
+index b28483bb61f..4dcac2082ca 100644
+--- a/nvidia/src/nvidia-drm/nv-pci-table.h
++++ b/nvidia/src/nvidia-drm/nv-pci-table.h
+@@ -26,6 +26,6 @@
+ 
+ #include <linux/pci.h>
+ 
+-extern struct pci_device_id nv_pci_table[];
++extern struct pci_device_id nv_module_device_table[];
+ 
+ #endif /* _NV_PCI_TABLE_H_ */
+diff --git a/nvidia/src/nvidia-drm/nvidia-drm-conftest.h b/nvidia/src/nvidia-drm/nvidia-drm-conftest.h
+index bed8d812656..bfc5da74a43 100644
+--- a/nvidia/src/nvidia-drm/nvidia-drm-conftest.h
++++ b/nvidia/src/nvidia-drm/nvidia-drm-conftest.h
+@@ -23,7 +23,10 @@
+ #ifndef __NVIDIA_DRM_CONFTEST_H__
+ #define __NVIDIA_DRM_CONFTEST_H__
+ 
+-#include "conftest.h"
++#include "conftest/type.h"
++#include "conftest/function.h"
++#include "conftest/generic.h"
++#include "conftest/headers.h"
+ 
+ /*
+  * NOTE: This file is expected to get included at the top before including any
+@@ -61,4 +64,43 @@
+ #undef NV_DRM_FENCE_AVAILABLE
+ #endif
+ 
++/*
++ * Now for the FreeBSD specific stuff
++ */
++#ifndef __linux__
++
++#include <sys/types.h>
++/*
++ * sys/nv.h and nvidia/nv.h have the same header guard
++ * we need to clear it for nvlist_t  to get loaded
++ */
++#undef _NV_H_
++#include <sys/nv.h>
++
++/* drm includes */
++#include <linux/ktime.h>
++#include <linux/stringify.h>
++#include <linux/rbtree.h>
++#include <drm/drm_gem.h>
++
++#include <drm/drm_encoder.h>
++#include <linux/idr.h>
++#include <drm/drm_auth.h>
++#include "nv-mm.h"
++#include <linux/mm.h>
++#include <vm/vm_phys.h>
++
++#include <linux/list.h>
++/* redefine LIST_HEAD_INIT to the linux version */
++#define LIST_HEAD_INIT(name) LINUX_LIST_HEAD_INIT(name)
++
++/*
++ * For now just use set_page_dirty as the lock variant
++ * is not ported for FreeBSD. (in progress). This calls
++ * vm_page_dirty
++ */
++#define set_page_dirty_lock set_page_dirty
++
++#endif /* defined(__linux__) */
++
+ #endif /* defined(__NVIDIA_DRM_CONFTEST_H__) */
+diff --git a/nvidia/src/nvidia-drm/nvidia-drm-crtc.c b/nvidia/src/nvidia-drm/nvidia-drm-crtc.c
+index 51d6324cbcc..91ca4ce832d 100644
+--- a/nvidia/src/nvidia-drm/nvidia-drm-crtc.c
++++ b/nvidia/src/nvidia-drm/nvidia-drm-crtc.c
+@@ -584,7 +584,7 @@ static int nv_drm_plane_atomic_set_property(
+ {
+     struct nv_drm_device *nv_dev = to_nv_device(plane->dev);
+     struct nv_drm_plane_state *nv_drm_plane_state =
+-        to_nv_drm_plane_state(state);
++      to_nv_drm_plane_state(state);
+ 
+     if (property == nv_dev->nv_out_fence_property) {
+ #if defined(NV_LINUX_NVHOST_H_PRESENT) && defined(CONFIG_TEGRA_GRHOST)
+@@ -1111,7 +1111,11 @@ nv_drm_plane_create(struct drm_device *dev,
+         formats, formats_count,
+ #if defined(NV_DRM_UNIVERSAL_PLANE_INIT_HAS_FORMAT_MODIFIERS_ARG)
+         (plane_type == DRM_PLANE_TYPE_CURSOR) ?
++#ifndef __linux__
++        (const uint64_t *)linear_modifiers : (const uint64_t *)nv_dev->modifiers,
++#else
+         linear_modifiers : nv_dev->modifiers,
++#endif
+ #endif
+         plane_type
+ #if defined(NV_DRM_UNIVERSAL_PLANE_INIT_HAS_NAME_ARG)
+@@ -1157,7 +1161,12 @@ failed:
+ /*
+  * Add drm crtc for given head and supported enum NvKmsSurfaceMemoryFormats.
+  */
+-static struct drm_crtc *__nv_drm_crtc_create(struct nv_drm_device *nv_dev,
++extern struct drm_crtc *__nv_drm_crtc_create(struct nv_drm_device *nv_dev,
++                                             struct drm_plane *primary_plane,
++                                             struct drm_plane *cursor_plane,
++                                             unsigned int head);
++
++struct drm_crtc *__nv_drm_crtc_create(struct nv_drm_device *nv_dev,
+                                              struct drm_plane *primary_plane,
+                                              struct drm_plane *cursor_plane,
+                                              unsigned int head)
+diff --git a/nvidia/src/nvidia-drm/nvidia-drm-drv.c b/nvidia/src/nvidia-drm/nvidia-drm-drv.c
+index 0871f1a2cc6..6ee9848189a 100644
+--- a/nvidia/src/nvidia-drm/nvidia-drm-drv.c
++++ b/nvidia/src/nvidia-drm/nvidia-drm-drv.c
+@@ -22,6 +22,11 @@
+ 
+ #include "nvidia-drm-conftest.h" /* NV_DRM_AVAILABLE and NV_DRM_DRM_GEM_H_PRESENT */
+ 
++#ifndef __linux__
++#include "nvidia-drm.h"
++#include <drm/drm.h>
++#endif
++
+ #include "nvidia-drm-priv.h"
+ #include "nvidia-drm-drv.h"
+ #include "nvidia-drm-fb.h"
+@@ -84,7 +89,7 @@
+ #include <drm/drm_atomic_helper.h>
+ #endif
+ 
+-static struct nv_drm_device *dev_list = NULL;
++struct nv_drm_device *nv_dev_list = NULL;
+ 
+ static const char* nv_get_input_colorspace_name(
+     enum NvKmsInputColorSpace colorSpace)
+@@ -923,7 +928,7 @@ static struct drm_driver nv_drm_driver = {
+  * kernel supports atomic modeset and the 'modeset' kernel module
+  * parameter is true.
+  */
+-static void nv_drm_update_drm_driver_features(void)
++void nv_drm_update_drm_driver_features(void)
+ {
+ #if defined(NV_DRM_ATOMIC_MODESET_AVAILABLE)
+ 
+@@ -947,7 +952,7 @@ static void nv_drm_update_drm_driver_features(void)
+ /*
+  * Helper function for allocate/register DRM device for given NVIDIA GPU ID.
+  */
+-static void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
++void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
+ {
+     struct nv_drm_device *nv_dev = NULL;
+     struct drm_device *dev = NULL;
+@@ -986,7 +991,11 @@ static void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
+     nv_dev->dev = dev;
+ 
+ #if defined(NV_DRM_DEVICE_HAS_PDEV)
++#ifdef __linux__
+     if (device->bus == &pci_bus_type) {
++#else
++    if (devclass_find("pci")) {
++#endif
+         dev->pdev = to_pci_dev(device);
+     }
+ #endif
+@@ -1000,8 +1009,8 @@ static void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
+ 
+     /* Add NVIDIA-DRM device into list */
+ 
+-    nv_dev->next = dev_list;
+-    dev_list = nv_dev;
++    nv_dev->next = nv_dev_list;
++    nv_dev_list = nv_dev;
+ 
+     return; /* Success */
+ 
+@@ -1017,6 +1026,7 @@ failed_drm_alloc:
+ /*
+  * Enumerate NVIDIA GPUs and allocate/register DRM device for each of them.
+  */
++#ifdef __linux__
+ int nv_drm_probe_devices(void)
+ {
+     nv_gpu_info_t *gpu_info = NULL;
+@@ -1059,21 +1069,25 @@ done:
+ 
+     return ret;
+ }
++#endif
++
++struct pci_dev *nv_lkpi_pci_devs[NV_MAX_DEVICES];
+ 
+ /*
+  * Unregister all NVIDIA DRM devices.
+  */
+ void nv_drm_remove_devices(void)
+ {
+-    while (dev_list != NULL) {
+-        struct nv_drm_device *next = dev_list->next;
++    while (nv_dev_list != NULL) {
++        struct nv_drm_device *next = nv_dev_list->next;
+ 
+-        drm_dev_unregister(dev_list->dev);
+-        nv_drm_dev_free(dev_list->dev);
++        /* check if we should free the drm_device->dev ?? aka the pci_dev from lkpi */
++        drm_dev_unregister(nv_dev_list->dev);
++        nv_drm_dev_free(nv_dev_list->dev);
+ 
+-        nv_drm_free(dev_list);
++        nv_drm_free(nv_dev_list);
+ 
+-        dev_list = next;
++        nv_dev_list = next;
+     }
+ }
+ 
+diff --git a/nvidia/src/nvidia-drm/nvidia-drm-fb.c b/nvidia/src/nvidia-drm/nvidia-drm-fb.c
+index d119e7c92dd..22715e4ae55 100644
+--- a/nvidia/src/nvidia-drm/nvidia-drm-fb.c
++++ b/nvidia/src/nvidia-drm/nvidia-drm-fb.c
+@@ -218,7 +218,11 @@ struct drm_framebuffer *nv_drm_internal_framebuffer_create(
+         if (nv_dev->modifiers[i] == DRM_FORMAT_MOD_INVALID) {
+             NV_DRM_DEV_DEBUG_DRIVER(
+                 nv_dev,
++#ifdef __linux__
+                 "Invalid format modifier for framebuffer object: 0x%016llx",
++#else
++                "Invalid format modifier for framebuffer object: 0x%016lx",
++#endif
+                 modifier);
+             return ERR_PTR(-EINVAL);
+         }
+diff --git a/nvidia/src/nvidia-drm/nvidia-drm-fence.c b/nvidia/src/nvidia-drm/nvidia-drm-fence.c
+index 9606d3a9aec..ff3a21b99d3 100644
+--- a/nvidia/src/nvidia-drm/nvidia-drm-fence.c
++++ b/nvidia/src/nvidia-drm/nvidia-drm-fence.c
+@@ -151,7 +151,11 @@ __nv_drm_prime_fence_signal(struct nv_drm_prime_fence *nv_fence)
+ static void nv_drm_gem_prime_force_fence_signal(
+     struct nv_drm_prime_fence_context *nv_fence_context)
+ {
++#ifdef __linux__
+     WARN_ON(!spin_is_locked(&nv_fence_context->lock));
++#else
++    WARN_ON(!mtx_owned(&nv_fence_context->lock.m));
++#endif
+ 
+     while (!list_empty(&nv_fence_context->pending)) {
+         struct nv_drm_prime_fence *nv_fence = list_first_entry(
+diff --git a/nvidia/src/nvidia-drm/nvidia-drm-freebsd-lkpi.c b/nvidia/src/nvidia-drm/nvidia-drm-freebsd-lkpi.c
+new file mode 100644
+index 00000000000..539bf9eec48
+--- /dev/null
++++ b/nvidia/src/nvidia-drm/nvidia-drm-freebsd-lkpi.c
+@@ -0,0 +1,236 @@
++/*
++ * Copyright (c) 2015, NVIDIA CORPORATION. All rights reserved.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
++ * DEALINGS IN THE SOFTWARE.
++ */
++
++/*
++ * include the FreeBSD structures (nvidia_softc)
++ * have to grab it from src/nvidia/nv-freebsd.h
++ *
++ * have to be done first before the LIST_HEAD linux version
++ */
++#include "nvmisc.h"
++#define NVRM
++#include "../nvidia/nv.h"
++#include "../nvidia/nv-freebsd.h"
++
++/* undef BIT, since it was just identically defined in nvmisc.h */
++#undef BIT
++#include <linux/module.h>
++#include <linux/slab.h>
++#include <linux/err.h>
++
++#include "../nvidia/os-interface.h"
++
++#include "nvidia-drm-os-interface.h"
++#include "nvidia-drm.h"
++
++#include "nvidia-drm-conftest.h"
++
++#if defined(NV_DRM_AVAILABLE)
++
++#include "nv-mm.h"
++
++#include "nv-gpu-info.h"
++#include "nvidia-drm-drv.h"
++#include "nvidia-drm-priv.h"
++
++bool nv_drm_modeset_module_param = true;
++
++SYSCTL_NODE(_hw, OID_AUTO, nvidiadrm, CTLFLAG_RD | CTLFLAG_MPSAFE, 0,
++    "nvidia-drm kernel module parameters");
++SYSCTL_BOOL(_hw_nvidiadrm, OID_AUTO, modeset,  CTLFLAG_RD | CTLFLAG_MPSAFE,
++    &nv_drm_modeset_module_param,  1,
++    "Enable atomic kernel modesetting (1 = enable, 0 = disable (default))");
++
++void *nv_drm_calloc(size_t nmemb, size_t size)
++{
++    return kzalloc(nmemb * size, GFP_KERNEL);
++}
++
++void nv_drm_free(void *ptr)
++{
++    if (IS_ERR(ptr)) {
++        return;
++    }
++
++    kfree(ptr);
++}
++
++char *nv_drm_asprintf(const char *fmt, ...)
++{
++    va_list ap;
++    char *p;
++
++    va_start(ap, fmt);
++    p = kvasprintf(GFP_KERNEL, fmt, ap);
++    va_end(ap);
++
++    return p;
++}
++
++#if defined(NVCPU_X86) || defined(NVCPU_X86_64)
++  #define WRITE_COMBINE_FLUSH()    sfence()
++#elif defined(NVCPU_FAMILY_ARM)
++  #if defined(NVCPU_ARM)
++    #define WRITE_COMBINE_FLUSH()  { dsb(); outer_sync(); }
++  #elif defined(NVCPU_AARCH64)
++    #define WRITE_COMBINE_FLUSH()  mb()
++  #endif
++#elif defined(NVCPU_PPC64LE)
++  /* should include powerpc_sync for a cleaner approach */
++  #define WRITE_COMBINE_FLUSH()    __asm __volatile("sync":::"memory")
++#endif
++
++void nv_drm_write_combine_flush(void)
++{
++    WRITE_COMBINE_FLUSH();
++}
++
++int nv_drm_lock_user_pages(unsigned long address,
++                           unsigned long pages_count, struct page ***pages)
++{
++    struct mm_struct *mm = current->mm;
++    struct page **user_pages;
++    const int write = 1;
++    int pages_pinned;
++
++    user_pages = nv_drm_calloc(pages_count, sizeof(*user_pages));
++
++    if (user_pages == NULL) {
++        return -ENOMEM;
++    }
++
++    down_read(&mm->mmap_sem);
++
++    pages_pinned = NV_GET_USER_PAGES(address, pages_count, write,
++                                     user_pages, NULL);
++    up_read(&mm->mmap_sem);
++
++    if (pages_pinned < 0 || (unsigned)pages_pinned < pages_count) {
++        goto failed;
++    }
++
++    *pages = user_pages;
++
++    return 0;
++
++failed:
++
++    if (pages_pinned > 0) {
++        int i;
++
++        for (i = 0; i < pages_pinned; i++) {
++            put_page(user_pages[i]);
++        }
++    }
++
++    nv_drm_free(user_pages);
++
++    return (pages_pinned < 0) ? pages_pinned : -EINVAL;
++}
++
++void nv_drm_unlock_user_pages(unsigned long  pages_count, struct page **pages)
++{
++    unsigned long i;
++
++    for (i = 0; i < pages_count; i++) {
++        set_page_dirty_lock(pages[i]);
++
++        put_page(pages[i]);
++    }
++
++    nv_drm_free(pages);
++}
++
++void *nv_drm_vmap(struct page **pages, unsigned long pages_count)
++{
++    return vmap(pages, pages_count, VM_USERMAP, PAGE_KERNEL);
++}
++
++void nv_drm_vunmap(void *address)
++{
++    vunmap(address);
++}
++
++uint64_t nv_drm_get_time_usec(void)
++{
++    struct timeval tv;
++
++    microtime(&tv);
++
++    return (((uint64_t)tv.tv_sec) * 1000000) + tv.tv_usec;
++}
++
++/*************************************************************************
++ * FreeBSD linuxkpi based loading support code.
++ *************************************************************************/
++
++extern struct pci_dev *nv_lkpi_pci_devs[NV_MAX_DEVICES];
++
++int nv_drm_probe_devices(void)
++{
++    nv_drm_update_drm_driver_features();
++
++    /*
++     * Conveniently we can get all of the nvidia devices that were initialized
++     * by the native nvidia.ko by using our devclass.
++     */
++    for (int i = 0; i < NV_MAX_DEVICES; i++) {
++        nv_gpu_info_t gpu_info;
++        struct nvidia_softc *sc = devclass_get_softc(nvidia_devclass, i);
++        if (!sc) {
++            nv_lkpi_pci_devs[i] = NULL;
++            continue;
++        }
++        nv_state_t *nv = sc->nv_state;
++
++        /*
++         * Now we have the state (which gives us the device_t), but what nvidia-drm
++         * wants is a pci_dev suitable for use with linuxkpi code. We can use
++         * lkpinew_pci_dev to fill in a pci_dev struct,
++         */
++        struct pci_dev *pdev = lkpinew_pci_dev(sc->dev);
++        nv_lkpi_pci_devs[i] = pdev;
++        /* TODO: clear the release func, since nvidia.ko is in charge of this? */
++        //pdev->release = NULL;
++
++        gpu_info.gpu_id = nv->gpu_id;
++
++        gpu_info.pci_info.domain   = nv->pci_info.domain;
++        gpu_info.pci_info.bus      = nv->pci_info.bus;
++        gpu_info.pci_info.slot     = nv->pci_info.slot;
++        gpu_info.pci_info.function = nv->pci_info.function;
++        gpu_info.os_device_ptr = pdev;
++
++        nv_drm_register_drm_device(&gpu_info);
++    }
++
++    return 0;
++}
++
++LKPI_DRIVER_MODULE(nvidia_drm, nv_drm_init, nv_drm_exit);
++MODULE_DEPEND(nvidia_drm, linuxkpi, 1, 1, 1);
++MODULE_DEPEND(nvidia_drm, linuxkpi_gplv2, 1, 1, 1);
++MODULE_DEPEND(nvidia_drm, drmn, 2, 2, 2);
++MODULE_DEPEND(nvidia_drm, dmabuf, 1, 1, 1);
++MODULE_DEPEND(nvidia_drm, nvidia, 1, 1, 1);
++MODULE_DEPEND(nvidia_drm, nvidia_modeset, 1, 1, 1);
++#endif /* NV_DRM_AVAILABLE */
+diff --git a/nvidia/src/nvidia-drm/nvidia-drm-gem-dma-buf.c b/nvidia/src/nvidia-drm/nvidia-drm-gem-dma-buf.c
+index fccde05d010..c40ecdcef5e 100644
+--- a/nvidia/src/nvidia-drm/nvidia-drm-gem-dma-buf.c
++++ b/nvidia/src/nvidia-drm/nvidia-drm-gem-dma-buf.c
+@@ -71,12 +71,43 @@ static int __nv_drm_gem_dma_buf_create_mmap_offset(
+ static int __nv_drm_gem_dma_buf_mmap(struct nv_drm_gem_object *nv_gem,
+                                      struct vm_area_struct *vma)
+ {
++#ifdef __linux__
+     struct dma_buf_attachment *attach = nv_gem->base.import_attach;
+     struct dma_buf *dma_buf = attach->dmabuf;
++#endif
+     struct file *old_file;
+     int ret;
+ 
+     /* check if buffer supports mmap */
++#ifndef __linux__
++    /*
++     * Most of the bsd drm bits refer to struct file*, which is actually
++     * a struct linux_file*. The dmabuf bits in bsd are not actually plumbed
++     * through the same linuxkpi bits it seems (probably so it can be used
++     * elsewhere), so dma_buf->file really is a native freebsd struct file...
++     *
++     * This is just different enough to be annoying
++     */
++    if (!nv_gem->base.filp->f_op->mmap)
++        return -EINVAL;
++
++    /* readjust the vma */
++    get_file(nv_gem->base.filp);
++    old_file = vma->vm_file;
++    vma->vm_file = nv_gem->base.filp;
++    vma->vm_pgoff -= drm_vma_node_start(&nv_gem->base.vma_node);;
++
++    ret = nv_gem->base.filp->f_op->mmap(nv_gem->base.filp, vma);
++
++    if (ret) {
++        /* restore old parameters on failure */
++        vma->vm_file = old_file;
++        fput(nv_gem->base.filp);
++    } else {
++        if (old_file)
++            fput(old_file);
++    }
++#else
+     if (!dma_buf->file->f_op->mmap)
+         return -EINVAL;
+ 
+@@ -96,6 +127,7 @@ static int __nv_drm_gem_dma_buf_mmap(struct nv_drm_gem_object *nv_gem,
+         if (old_file)
+             fput(old_file);
+     }
++#endif
+ 
+     return ret;
+ }
+diff --git a/nvidia/src/nvidia-drm/nvidia-drm-gem-nvkms-memory.c b/nvidia/src/nvidia-drm/nvidia-drm-gem-nvkms-memory.c
+index 842238d186e..72a4d9817db 100644
+--- a/nvidia/src/nvidia-drm/nvidia-drm-gem-nvkms-memory.c
++++ b/nvidia/src/nvidia-drm/nvidia-drm-gem-nvkms-memory.c
+@@ -38,6 +38,7 @@
+ 
+ #include <linux/io.h>
+ 
++#include <vm/vm_pageout.h>
+ #include "nv-mm.h"
+ 
+ static void __nv_drm_gem_nvkms_memory_free(struct nv_drm_gem_object *nv_gem)
+@@ -93,7 +94,18 @@ static vm_fault_t __nv_drm_gem_nvkms_handle_vma_fault(
+     if (nv_nvkms_memory->pages_count == 0) {
+         pfn = (unsigned long)(uintptr_t)nv_nvkms_memory->pPhysicalAddress;
+         pfn >>= PAGE_SHIFT;
++#ifdef __linux__
++        /*
++         * FreeBSD doesn't set pgoff. We instead have pfn be the base physical
++         * address, and we will calculate the index pidx from the virtual address.
++         *
++         * This only works because linux_cdev_pager_populate passes the pidx as
++         * vmf->virtual_address, which is stupid. Then we turn the virtual address
++         * into a physical page number, which is also stupid. The stupid cancels
++         * out and everything works.
++         */
+         pfn += page_offset;
++#endif
+     } else {
+ #if NVCFG(GLOBAL_FEATURE_SECURITY_ROLLOUT_4_2022)
+         BUG_ON(page_offset >= nv_nvkms_memory->pages_count);
+@@ -103,6 +115,7 @@ static vm_fault_t __nv_drm_gem_nvkms_handle_vma_fault(
+         pfn = page_to_pfn(nv_nvkms_memory->pages[page_offset]);
+     }
+ 
++#ifdef __linux__
+ #if defined(NV_VMF_INSERT_PFN_PRESENT)
+     ret = vmf_insert_pfn(vma, address, pfn);
+ #else
+@@ -125,7 +138,57 @@ static vm_fault_t __nv_drm_gem_nvkms_handle_vma_fault(
+             break;
+     }
+ #endif /* defined(NV_VMF_INSERT_PFN_PRESENT) */
++#else
++    /* FreeBSD specific: find location to insert new page */
++    vm_pindex_t pidx = OFF_TO_IDX(address);
++    vm_object_t obj = vma->vm_obj;
++    vm_page_t page;
++
++    VM_OBJECT_WLOCK(obj);
++    for (;;) {
++        /*
++         * First we try to grab our page within the obj, getting it if it exists
++         * but don't allocate it if it doesn't.
++         */
++        page = vm_page_grab(obj, pidx, VM_ALLOC_NOCREAT);
++        if (!page) {
++            /* Now we create the page */
++            page = PHYS_TO_VM_PAGE(IDX_TO_OFF(pfn + pidx));
++            if (!page) {
++                VM_OBJECT_WUNLOCK(obj);
++                return VM_FAULT_SIGBUS;
++            }
++            /* try to busy it, if not restart this process */
++            if (!vm_page_busy_acquire(page, VM_ALLOC_WAITFAIL)) {
++                continue;
++            }
++            /* now we can insert the page in our object */
++            if (vm_page_insert(page, obj, pidx)) {
++                vm_page_xunbusy(page);
++                VM_OBJECT_WUNLOCK(obj);
++				vm_wait(NULL);
++				VM_OBJECT_WLOCK(obj);
++                continue;
++            }
++            vm_page_valid(page);
++        }
++        break;
++    }
++    VM_OBJECT_WUNLOCK(obj);
++
++    ret = VM_FAULT_NOPAGE;
++
++    /*
++     * linuxkpi will communicate to vm_fault_populate which pages to
++     * map into the address space based on vm_pfn_first and vm_pfn_count
++     *  (sys/compat/linuxkpi/common/src/linux_compat.c line 577)
++     * we only mapped one page at a time, the page we added was page pidx
++     */
++    vma->vm_pfn_first = pidx;
++    vma->vm_pfn_count = 1;
+     return ret;
++#endif /* __linux__ */
++        return ret;
+ #endif /* defined(NV_DRM_ATOMIC_MODESET_AVAILABLE) */
+     return VM_FAULT_SIGBUS;
+ }
+@@ -304,7 +367,11 @@ int nv_drm_dumb_create(
+         ret = -ENOMEM;
+         NV_DRM_DEV_LOG_ERR(
+             nv_dev,
+-            "Failed to allocate NvKmsKapiMemory for dumb object of size %llu",
++#ifdef __linux__
++	    "Failed to allocate NvKmsKapiMemory for dumb object of size %llu",
++#else
++	    "Failed to allocate NvKmsKapiMemory for dumb object of size %lu",
++#endif
+             args->size);
+         goto nvkms_alloc_memory_failed;
+     }
+@@ -324,6 +391,27 @@ int nv_drm_dumb_create(
+         goto fail;
+     }
+ 
++#ifndef __linux__
++    /*
++     * register the pages with the vm system
++     * These pages will be used to back
++     * fault requests. Pages are registered
++     * as PG_FICTITIOUS to signify device
++     * mapped memory
++     */
++    vm_paddr_t start = (vm_paddr_t)nv_nvkms_memory->pPhysicalAddress;
++    vm_paddr_t end = start + args->size;
++    NV_DRM_LOG_INFO("nv_drm_dumb_create: at 0x%jx with size 0x%lx.\n", start, end);
++
++    ret = vm_phys_fictitious_reg_range(start, end, VM_MEMATTR_WRITE_COMBINING);
++    if (ret) {
++	    NV_DRM_LOG_INFO("Failed to register fictitious range 0x%jx-0x%lx (error = %d).\n",
++			    start, end, ret);
++        nv_drm_gem_object_unreference_unlocked(&nv_nvkms_memory->base);
++        goto fail;
++    }
++#endif
++
+     return nv_drm_gem_handle_create_drop_reference(file_priv,
+                                                    &nv_nvkms_memory->base,
+                                                    &args->handle);
+diff --git a/nvidia/src/nvidia-drm/nvidia-drm-gem-user-memory.c b/nvidia/src/nvidia-drm/nvidia-drm-gem-user-memory.c
+index e9bc57f9fff..b2ffed20458 100644
+--- a/nvidia/src/nvidia-drm/nvidia-drm-gem-user-memory.c
++++ b/nvidia/src/nvidia-drm/nvidia-drm-gem-user-memory.c
+@@ -35,6 +35,7 @@
+ #include "linux/dma-buf.h"
+ #include "linux/mm.h"
+ #include "nv-mm.h"
++#include <vm/vm_pageout.h>
+ 
+ static inline
+ void __nv_drm_gem_user_memory_free(struct nv_drm_gem_object *nv_gem)
+@@ -112,11 +113,68 @@ static vm_fault_t __nv_drm_gem_user_memory_handle_vma_fault(
+ 
+     page_offset = vmf->pgoff - drm_vma_node_start(&gem->vma_node);
+ 
+-#if NVCFG(GLOBAL_FEATURE_SECURITY_ROLLOUT_4_2022)
+-    BUG_ON(page_offset >= nv_user_memory->pages_count);
+-#else
+     BUG_ON(page_offset > nv_user_memory->pages_count);
+-#endif
++
++#ifndef __linux__
++    /*
++     * FreeBSD specific: find location to insert new page
++     *
++     * FreeBSD doesn't set pgoff. We instead have pfn be the base physical
++     * address, and we will calculate the index pidx from the virtual address.
++     *
++     * This only works because linux_cdev_pager_populate passes the pidx as
++     * vmf->virtual_address, which is stupid. Then we turn the virtual address
++     * into a physical page number, which is also stupid. The stupid cancels
++     * out and everything works.
++     */
++    unsigned long pfn = page_to_pfn(nv_user_memory->pages[page_offset]);
++    vm_pindex_t pidx = OFF_TO_IDX(address);
++    vm_object_t obj = vma->vm_obj;
++    vm_page_t page;
++
++    VM_OBJECT_WLOCK(obj);
++    for (;;) {
++        /*
++         * First we try to grab our page within the obj, getting it if it exists
++         * but don't allocate it if it doesn't.
++         */
++        page = vm_page_grab(obj, pidx, VM_ALLOC_NOCREAT);
++        if (!page) {
++            /* Now we create the page */
++            page = PHYS_TO_VM_PAGE(IDX_TO_OFF(pfn + pidx));
++            if (!page) {
++                VM_OBJECT_WUNLOCK(obj);
++                return VM_FAULT_SIGBUS;
++            }
++            /* try to busy it, if not restart this process */
++            if (!vm_page_busy_acquire(page, VM_ALLOC_WAITFAIL)) {
++                continue;
++            }
++            /* now we can insert the page in our object */
++            if (vm_page_insert(page, obj, pidx)) {
++                vm_page_xunbusy(page);
++                VM_OBJECT_WUNLOCK(obj);
++				vm_wait(NULL);
++				VM_OBJECT_WLOCK(obj);
++                continue;
++            }
++            vm_page_valid(page);
++        }
++        break;
++    }
++    VM_OBJECT_WUNLOCK(obj);
++
++    ret = VM_FAULT_NOPAGE;
++
++    /*
++     * linuxkpi will communicate to vm_fault_populate which pages to
++     * map into the address space based on vm_pfn_first and vm_pfn_count
++     *  (sys/compat/linuxkpi/common/src/linux_compat.c line 577)
++     * we only mapped one page at a time, the page we added was page pidx
++     */
++    vma->vm_pfn_first = pidx;
++    vma->vm_pfn_count = 1;
++#else /* !defined(__linux__) */
+     ret = vm_insert_page(vma, address, nv_user_memory->pages[page_offset]);
+     switch (ret) {
+         case 0:
+@@ -135,6 +193,7 @@ static vm_fault_t __nv_drm_gem_user_memory_handle_vma_fault(
+             ret = VM_FAULT_SIGBUS;
+             break;
+     }
++#endif /* !defined(__linux__) */
+ 
+     return ret;
+ }
+@@ -174,7 +233,11 @@ int nv_drm_gem_import_userspace_memory_ioctl(struct drm_device *dev,
+     if ((params->size % PAGE_SIZE) != 0) {
+         NV_DRM_DEV_LOG_ERR(
+             nv_dev,
++#ifdef __linux__
+             "Userspace memory 0x%llx size should be in a multiple of page "
++#else
++	    "Userspace memory 0x%lx size should be in a multiple of page "
++#endif
+             "size to create a gem object",
+             params->address);
+         return -EINVAL;
+@@ -187,7 +250,11 @@ int nv_drm_gem_import_userspace_memory_ioctl(struct drm_device *dev,
+     if (ret != 0) {
+         NV_DRM_DEV_LOG_ERR(
+             nv_dev,
++#ifdef __linux__
+             "Failed to lock user pages for address 0x%llx: %d",
++#else
++	    "Failed to lock user pages for address 0x%lx: %d",
++#endif
+             params->address, ret);
+         return ret;
+     }
+diff --git a/nvidia/src/nvidia-drm/nvidia-drm-helper.c b/nvidia/src/nvidia-drm/nvidia-drm-helper.c
+index 2a0bfa49048..8e9028af58d 100644
+--- a/nvidia/src/nvidia-drm/nvidia-drm-helper.c
++++ b/nvidia/src/nvidia-drm/nvidia-drm-helper.c
+@@ -198,7 +198,11 @@ free:
+     drm_atomic_state_put(state);
+ #else
+     if (ret != 0) {
++#ifdef __linux__
+         drm_atomic_state_free(state);
++#else
++        drm_atomic_state_put(state);
++#endif
+     } else {
+         /*
+          * In case of success, drm_atomic_commit() takes care to cleanup and
+diff --git a/nvidia/src/nvidia-drm/nvidia-drm.c b/nvidia/src/nvidia-drm/nvidia-drm.c
+index a191ccf7c60..cc0978ca7e5 100644
+--- a/nvidia/src/nvidia-drm/nvidia-drm.c
++++ b/nvidia/src/nvidia-drm/nvidia-drm.c
+@@ -48,7 +48,7 @@ int nv_drm_init(void)
+     return nv_drm_probe_devices();
+ #else
+     return 0;
+-#endif
++#endif /* NV_DRM_AVAILABLE */
+ }
+ 
+ void nv_drm_exit(void)
+diff --git a/nvidia/src/nvidia-drm/include/nvidia-drm-drv.h b/nvidia/src/nvidia-drm/include/nvidia-drm-drv.h
+index cd20ec93fe3..95b0688eaf9 100644
+--- a/nvidia/src/nvidia-drm/include/nvidia-drm-drv.h
++++ b/nvidia/src/nvidia-drm/include/nvidia-drm-drv.h
+@@ -31,6 +31,11 @@ int nv_drm_probe_devices(void);
+ 
+ void nv_drm_remove_devices(void);
+ 
++/* the FreeBSD lpki probe function uses this in its probe */
++#ifndef __linux__
++void nv_drm_register_drm_device(const nv_gpu_info_t *);
++#endif
++
+ #endif /* defined(NV_DRM_AVAILABLE) */
+ 
+ #endif /* __NVIDIA_DRM_DRV_H__ */
+diff --git a/nvidia/src/nvidia-drm/include/nvidia-drm.h b/nvidia/src/nvidia-drm/include/nvidia-drm.h
+index 9f1c31ce3f7..cbd47ab11a3 100644
+--- a/nvidia/src/nvidia-drm/include/nvidia-drm.h
++++ b/nvidia/src/nvidia-drm/include/nvidia-drm.h
+@@ -25,6 +25,53 @@
+ 
+ #include "nvidia-drm-conftest.h"
+ 
++/*
++ * FreeBSD specific variables:
++ *
++ *  Turn on NV_DRM_AVAILABLE to enable the entire module
++ */
++#ifndef __linux__
++
++/* linuxkpi specific includes */
++#include <linux/device.h>
++#include <linux/vmalloc.h>
++
++#include "nv-pci-table.h"
++
++int nv_drm_bsd_probe(struct pci_dev *dev,
++			    const struct pci_device_id *ent);
++
++extern struct pci_driver nv_drm_pci_driver;
++
++#include <cpufunc.h> /* sfence support */
++
++/* prototypes for non-static functions */
++void *nv_drm_calloc(size_t, size_t);
++void nv_drm_free(void *);
++char *nv_drm_asprintf(const char *, ...);
++void nv_drm_write_combine_flush(void);
++int nv_drm_lock_user_pages(unsigned long,
++                           unsigned long, struct page ***);
++void nv_drm_unlock_user_pages(unsigned long , struct page **);
++void *nv_drm_vmap(struct page **, unsigned long);
++void nv_drm_vunmap(void *);
++uint64_t nv_drm_get_time_usec(void);
++void nv_drm_update_drm_driver_features(void);
++
++/* devclass for linux_pci_register_drm_driver */
++extern devclass_t nv_drm_devclass;
++
++/*
++ * linuxkpi vmap doesn't use the flags argument as it
++ * doesn't seem to be needed. Define VM_USERMAP to 0
++ * to make errors go away
++ *
++ * vmap: sys/compat/linuxkpi/common/src/linux_compat.c
++ */
++#define VM_USERMAP 0
++
++#endif /* __linux__ */
++
+ int nv_drm_init(void);
+ void nv_drm_exit(void);
+ 
+diff --git a/nvidia/src/nvidia-drm/include/uapi/nvidia-drm-ioctl.h b/nvidia/src/nvidia-drm/include/uapi/nvidia-drm-ioctl.h
+index 850bd0c39dc..93099dead6d 100644
+--- a/nvidia/src/nvidia-drm/include/uapi/nvidia-drm-ioctl.h
++++ b/nvidia/src/nvidia-drm/include/uapi/nvidia-drm-ioctl.h
+@@ -63,7 +63,7 @@
+  *
+  * 'warning: suggest parentheses around arithmetic in operand of |'
+  */
+-#if defined(NV_LINUX)
++#if defined(NV_LINUX) || defined(NV_BSD)
+ #define DRM_IOCTL_NVIDIA_FENCE_SUPPORTED                         \
+     DRM_IO(DRM_COMMAND_BASE + DRM_NVIDIA_FENCE_SUPPORTED)
+ #define DRM_IOCTL_NVIDIA_DMABUF_SUPPORTED                        \
+diff --git a/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c b/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c
+index 096553e6f1c..4d6d15afd6b 100644
+--- a/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c
++++ b/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c
+@@ -28,6 +28,8 @@
+ #include <sys/proc.h>
+ #include <sys/stack.h>
+ #include <sys/sysproto.h>
++#include <sys/queue.h>
++#include <sys/mutex.h>
+ 
+ #include "nvkms-ioctl.h"
+ #include "nvidia-modeset-os-interface.h"
+diff --git a/nvidia/src/nvidia-modeset/nvidia-modeset-os-interface.h b/nvidia/src/nvidia-modeset/nvidia-modeset-os-interface.h
+index 8036811f9d5..62f48f23029 100644
+--- a/nvidia/src/nvidia-modeset/nvidia-modeset-os-interface.h
++++ b/nvidia/src/nvidia-modeset/nvidia-modeset-os-interface.h
+@@ -360,5 +360,12 @@ nvkms_register_backlight(NvU32 gpu_id, NvU32 display_id, void *drv_priv,
+ 
+ void nvkms_unregister_backlight(struct nvkms_backlight_device *nvkms_bd);
+ 
++struct nvkms_per_open *nvkms_open_common(enum NvKmsClientType,
++                                         struct NvKmsKapiDevice *,
++                                         int *);
++void nvkms_close_common(struct nvkms_per_open *);
++int nvkms_ioctl_common(struct nvkms_per_open *,
++                       NvU32, NvU64, const size_t);
++
+ #endif /* _NVIDIA_MODESET_OS_INTERFACE_H_ */
+ 
+-- 
+2.35.1
+

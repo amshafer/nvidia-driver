@@ -1,0 +1,539 @@
+From 9eda9ea21475cc56c610a4d9fca7d42f84904189 Mon Sep 17 00:00:00 2001
+From: Austin Shafer <ashafer@nvidia.com>
+Date: Sun, 26 Sep 2021 01:23:07 -0400
+Subject: [PATCH 4/8] nvkms: Implement kapi on FreeBSD
+
+This is needed for nvidia-drm, which use kapi to interact with nvkms.
+This implementation is very similar to the Linux implementation, where
+we have a set of common functions which get called from both userspace
+and kernel kapi entrypoints.
+
+This also adds generating kapi callbacks for kernel clients when
+the nvkms event queue changes. This is done using the existing nvkms
+timer infrastructure.
+
+Finally, this also replicates CL 20540828 for FreeBSD. nvkms_call_rm
+will now allocate a new stack instead of trashing a global stack.
+---
+ .../FreeBSD/nvidia-modeset-freebsd.c          | 346 ++++++++++++++----
+ 1 file changed, 269 insertions(+), 77 deletions(-)
+
+diff --git a/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c b/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c
+index 1bbf62bd8c7..096553e6f1c 100644
+--- a/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c
++++ b/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c
+@@ -90,13 +90,30 @@ static struct {
+  * single file open./
+  *************************************************************************/
+ 
++
++/*
++ * Look here, we have two event queues that are totally out of sync. Maybe
++ * work is getting submitted in two different ways and isn't serialized.
++ * Make this finally shared code to get rid of all differences.
++ *
++ * These should be a union just like in the linux code
++ */
+ struct nvkms_per_open {
+     void *data;
+-    struct {
+-        struct mtx lock;
+-        uint32_t available;
+-        struct selinfo select;
+-    } events;
++    enum NvKmsClientType type;
++
++    union {
++        struct {
++            struct mtx lock;
++            uint32_t available;
++            struct selinfo select;
++        } user;
++        struct {
++            struct mtx lock;
++            nvkms_timer_handle_t *task;
++            struct NvKmsKapiDevice *device;
++        } kernel;
++    };
+ };
+ 
+ NvBool nvkms_output_rounding_fix(void)
+@@ -254,21 +271,6 @@ void nvkms_log(const int level, const char *gpuPrefix, const char *msg)
+     log(priority, "%s%s%s%s\n", NVKMS_LOG_PREFIX, levelPrefix, gpuPrefix, msg);
+ }
+ 
+-void
+-nvkms_event_queue_changed(nvkms_per_open_handle_t *pOpenKernel,
+-                          NvBool eventsAvailable)
+-{
+-    struct nvkms_per_open *popen = pOpenKernel;
+-
+-    mtx_lock(&popen->events.lock);
+-
+-    popen->events.available = eventsAvailable;
+-
+-    selwakeup(&popen->events.select);
+-
+-    mtx_unlock(&popen->events.lock);
+-}
+-
+ /*************************************************************************
+  * ref_ptr implementation.
+  *************************************************************************/
+@@ -541,6 +543,42 @@ static void nvkms_resume(NvU32 gpuId)
+     sx_xunlock(&nvkms_lock);
+ }
+ 
++static void nvkms_kapi_task_callback(void *arg, NvU32 dataU32 __unused)
++{
++    struct nvkms_per_open *popen = arg;
++    struct NvKmsKapiDevice *device = popen->kernel.device;
++
++    popen->kernel.task = NULL;
++
++    nvKmsKapiHandleEventQueueChange(device);
++}
++
++void
++nvkms_event_queue_changed(nvkms_per_open_handle_t *pOpenKernel,
++                          NvBool eventsAvailable)
++{
++    struct nvkms_per_open *popen = pOpenKernel;
++
++    switch (popen->type) {
++        case NVKMS_CLIENT_USER_SPACE:
++            mtx_lock(&popen->user.lock);
++
++            popen->user.available = eventsAvailable;
++
++            selwakeup(&popen->user.select);
++
++            mtx_unlock(&popen->user.lock);
++            break;
++        case NVKMS_CLIENT_KERNEL_SPACE:
++            if (!popen->kernel.task) {
++                popen->kernel.task = nvkms_alloc_timer(nvkms_kapi_task_callback,
++                                                       popen,
++                                                       0, /* dataU32 */
++                                                       0 /* callout delay */);
++            }
++            break;
++    }
++}
+ 
+ /*************************************************************************
+  * Interface with resman.
+@@ -550,7 +588,6 @@ static void nvkms_resume(NvU32 gpuId)
+  *************************************************************************/
+ 
+ static nvidia_modeset_rm_ops_t __rm_ops = { 0 };
+-static nvidia_modeset_stack_ptr nvkms_nvidia_stack = NULL;
+ static nvidia_modeset_callbacks_t nvkms_rm_callbacks = {
+     nvkms_suspend,
+     nvkms_resume
+@@ -578,20 +615,25 @@ static int nvkms_alloc_rm(void)
+         return ret;
+     }
+ 
+-    return __rm_ops.alloc_stack(&nvkms_nvidia_stack);
++    return 0;
+ }
+ 
+ static void nvkms_free_rm(void)
+ {
+     __rm_ops.set_callbacks(NULL);
+-    if (__rm_ops.free_stack != NULL) {
+-        __rm_ops.free_stack(nvkms_nvidia_stack);
+-    }
+ }
+ 
+ void nvkms_call_rm(void *ops)
+ {
+-    __rm_ops.op(nvkms_nvidia_stack, ops);
++    nvidia_modeset_stack_ptr stack = NULL;
++
++    if (__rm_ops.alloc_stack(&stack) != 0) {
++        return;
++    }
++
++    __rm_ops.op(stack, ops);
++
++    __rm_ops.free_stack(stack);
+ }
+ 
+ #include <sys/caprights.h>
+@@ -690,12 +732,31 @@ NvBool nvkms_fd_is_nvidia_chardev(int fd)
+ 
+ NvBool nvkms_open_gpu(NvU32 gpuId)
+ {
+-    return __rm_ops.open_gpu(gpuId, nvkms_nvidia_stack) == 0;
++    nvidia_modeset_stack_ptr stack = NULL;
++    NvBool ret;
++
++    if (__rm_ops.alloc_stack(&stack) != 0) {
++        return NV_FALSE;
++    }
++
++    ret = __rm_ops.open_gpu(gpuId, stack) == 0;
++
++    __rm_ops.free_stack(stack);
++
++    return ret;
+ }
+ 
+ void nvkms_close_gpu(NvU32 gpuId)
+ {
+-    __rm_ops.close_gpu(gpuId, nvkms_nvidia_stack);
++    nvidia_modeset_stack_ptr stack = NULL;
++
++    if (__rm_ops.alloc_stack(&stack) != 0) {
++        return;
++    }
++
++    __rm_ops.close_gpu(gpuId, stack);
++
++    __rm_ops.free_stack(stack);
+ }
+ 
+ NvU32 nvkms_enumerate_gpus(nv_gpu_info_t *gpu_info)
+@@ -723,6 +784,136 @@ void nvkms_unregister_backlight(struct nvkms_backlight_device *nvkms_bd)
+ {
+ }
+ 
++/*************************************************************************
++ * Common to both user-space and kapi NVKMS interfaces
++ *************************************************************************/
++
++/*
++ * a mirror of nvkms_open. Does the kernel space opening
++ * - don't add character device
++ * - don't handle NVKMS_CLIENT_USER_SPACE (thats nvkms_open)
++ * - doesn't do select, uses task queueing
++ */
++struct nvkms_per_open *nvkms_open_common(enum NvKmsClientType type,
++                                         struct NvKmsKapiDevice *device,
++                                         int *status)
++{
++    struct nvkms_per_open *popen = NULL;
++
++    popen = nvkms_alloc(sizeof(*popen), NV_TRUE);
++
++    if (popen == NULL) {
++        *status = -ENOMEM;
++        goto failed;
++    }
++
++    popen->type = type;
++
++    sx_xlock(&nvkms_module.lock);
++
++    if (nvkms_module.is_unloading) {
++        sx_xunlock(&nvkms_module.lock);
++        *status = -ENXIO;
++        goto failed;
++    }
++
++    nvkms_module.client_counter += 1;
++    sx_xunlock(&nvkms_module.lock);
++
++    switch (type) {
++        case NVKMS_CLIENT_USER_SPACE:
++            mtx_init(&popen->user.lock, "nvkms-events-lock", NULL, 0);
++            break;
++        case NVKMS_CLIENT_KERNEL_SPACE:
++            mtx_init(&popen->kernel.lock, "nvidia-modeset-tasks", NULL, MTX_DEF);
++            /* enqueue our new task */
++            popen->kernel.device = device;
++            popen->kernel.task = nvkms_alloc_timer(nvkms_kapi_task_callback,
++                                                   popen,
++                                                   0, /* dataU32 */
++                                                   0 /* callout delay */);
++            break;
++    }
++
++    sx_xlock(&nvkms_lock);
++    popen->data = nvKmsOpen(curproc->p_pid, type, popen);
++    sx_xunlock(&nvkms_lock);
++
++    if (popen->data == NULL) {
++        *status = EPERM;
++        goto failed;
++    }
++
++    *status = 0;
++
++    return popen;
++
++failed:
++
++    nvkms_free(popen, sizeof(*popen));
++
++    return NULL;
++}
++
++void nvkms_close_common(struct nvkms_per_open *popen)
++{
++    sx_xlock(&nvkms_lock);
++    nvKmsClose(popen->data);
++    sx_xunlock(&nvkms_lock);
++
++    switch (popen->type) {
++        case NVKMS_CLIENT_USER_SPACE:
++            mtx_destroy(&popen->user.lock);
++            break;
++        case NVKMS_CLIENT_KERNEL_SPACE:
++            /*
++             * Flush any outstanding nvkms_kapi_task_callback() work
++             * items before freeing popen.
++             *
++             * Note that this must be done after the above nvKmsClose() call, to
++             * guarantee that no more nvkms_kapi_task_callback() work
++             * items get scheduled.
++             *
++             * Also, note that though popen->data is freed above, any subsequent
++             * nvkms_kapi_task_callback()'s for this popen should be
++             * safe: if any nvkms_kapi_task_callback()-initiated work
++             * attempts to call back into NVKMS, the popen->data==NULL check in
++             * nvkms_ioctl_common() should reject the request.
++             */
++            nvkms_free_timer(popen->kernel.task);
++            popen->kernel.task = NULL;
++            mtx_destroy(&popen->kernel.lock);
++            break;
++    }
++
++    nvkms_free(popen, sizeof(*popen));
++
++    sx_xlock(&nvkms_module.lock);
++    nvkms_module.client_counter -= 1;
++    sx_xunlock(&nvkms_module.lock);
++}
++
++int nvkms_ioctl_common
++(
++    struct nvkms_per_open *popen,
++    NvU32 cmd, NvU64 address, const size_t size
++)
++{
++    NvBool ret;
++
++    sx_xlock(&nvkms_lock);
++
++    if (popen && popen->data) {
++        ret = nvKmsIoctl(popen->data, cmd, address, size);
++    } else {
++        ret = NV_FALSE;
++    }
++
++    sx_xunlock(&nvkms_lock);
++
++    return ret ? 0 : EPERM;
++}
++
+ /*************************************************************************
+  * NVKMS interface for kernel space NVKMS clients like KAPI
+  *************************************************************************/
+@@ -732,11 +923,13 @@ struct nvkms_per_open* nvkms_open_from_kapi
+     struct NvKmsKapiDevice *device
+ )
+ {
+-    return NULL;
++    int status = 0;
++    return nvkms_open_common(NVKMS_CLIENT_KERNEL_SPACE, device, &status);
+ }
+ 
+ void nvkms_close_from_kapi(struct nvkms_per_open *popen)
+ {
++    nvkms_close_common(popen);
+ }
+ 
+ NvBool nvkms_ioctl_from_kapi
+@@ -745,7 +938,8 @@ NvBool nvkms_ioctl_from_kapi
+     NvU32 cmd, void *params_address, const size_t params_size
+ )
+ {
+-    return NV_FALSE;
++    return nvkms_ioctl_common(popen, cmd,
++            (NvU64)(NvUPtr)params_address, params_size) == 0;
+ }
+ 
+ 
+@@ -753,21 +947,43 @@ NvBool nvkms_ioctl_from_kapi
+  * APIs for locking.
+  *************************************************************************/
+ 
++/* according to man mutexes on bsd are faster than semaphores */
++struct nvkms_sema_t {
++    struct mtx nvs_mutex;
++};
++
+ nvkms_sema_handle_t* nvkms_sema_alloc(void)
+ {
+-    return NULL;
++    nvkms_sema_handle_t *sema = nvkms_alloc(sizeof(nvkms_sema_handle_t), NV_TRUE);
++    if (sema) {
++        mtx_init(&(sema->nvs_mutex), "NVIDIA Mutex", NULL, MTX_DEF);
++    }
++    return sema;
+ }
+ 
+ void nvkms_sema_free(nvkms_sema_handle_t *sema)
+ {
++    mtx_destroy(&sema->nvs_mutex);
++    nvkms_free(sema, sizeof(*sema));
+ }
+ 
+-void nvkms_sema_down(nvkms_sema_handle_t *seam)
++void nvkms_sema_down(nvkms_sema_handle_t *sema)
+ {
++    mtx_lock(&sema->nvs_mutex);
+ }
+ 
+ void nvkms_sema_up(nvkms_sema_handle_t *sema)
+ {
++    mtx_unlock(&sema->nvs_mutex);
++}
++
++/*************************************************************************
++ * NVKMS KAPI functions
++ ************************************************************************/
++
++NvBool nvKmsKapiGetFunctionsTable(struct NvKmsKapiFunctionsTable *funcsTable)
++{
++    return nvKmsKapiGetFunctionsTableInternal(funcsTable);
+ }
+ 
+ /*************************************************************************
+@@ -778,17 +994,7 @@ static void nvkms_close(void *arg)
+ {
+     struct nvkms_per_open *popen = arg;
+ 
+-    sx_xlock(&nvkms_lock);
+-    nvKmsClose(popen->data);
+-    sx_xunlock(&nvkms_lock);
+-
+-    mtx_destroy(&popen->events.lock);
+-
+-    nvkms_free(popen, sizeof(*popen));
+-
+-    sx_xlock(&nvkms_module.lock);
+-    nvkms_module.client_counter -= 1;
+-    sx_xunlock(&nvkms_module.lock);
++    nvkms_close_common(popen);
+ }
+ 
+ static int nvkms_ioctl(
+@@ -800,7 +1006,6 @@ static int nvkms_ioctl(
+ )
+ {
+     u_long nr, size;
+-    NvBool ret;
+     struct NvKmsIoctlParams *params;
+     struct nvkms_per_open *popen;
+     int status;
+@@ -823,14 +1028,9 @@ static int nvkms_ioctl(
+ 
+     params = (struct NvKmsIoctlParams*) data;
+ 
+-    sx_xlock(&nvkms_lock);
+-    ret = nvKmsIoctl(popen->data,
+-                     params->cmd,
+-                     params->address,
+-                     params->size);
+-    sx_xunlock(&nvkms_lock);
++    status = nvkms_ioctl_common(popen, params->cmd, params->address, params->size);
+ 
+-    return ret ? 0 : EPERM;
++    return status;
+ }
+ 
+ static int nvkms_open(
+@@ -843,22 +1043,11 @@ static int nvkms_open(
+     struct nvkms_per_open *popen;
+     int status;
+ 
+-    popen = nvkms_alloc(sizeof(*popen), NV_TRUE);
+-    if (popen == NULL) {
+-        return ENOMEM;
++    popen = nvkms_open_common(NVKMS_CLIENT_USER_SPACE, NULL, &status);
++    if (status != 0 || !popen || !popen->data) {
++        return EPERM;
+     }
+ 
+-    sx_xlock(&nvkms_module.lock);
+-
+-    if (nvkms_module.is_unloading) {
+-        sx_xunlock(&nvkms_module.lock);
+-        nvkms_free(popen, sizeof(*popen));
+-        return ENXIO;
+-    }
+-
+-    nvkms_module.client_counter += 1;
+-    sx_xunlock(&nvkms_module.lock);
+-
+     /*
+      * Associate popen with the file open of the current process
+      * context.  Register nvkms_close() to be called when the file
+@@ -872,13 +1061,6 @@ static int nvkms_open(
+         nvkms_free(popen, sizeof(*popen));
+         return status;
+     }
+-
+-    mtx_init(&popen->events.lock, "nvkms-events-lock", NULL, 0);
+-
+-    sx_xlock(&nvkms_lock);
+-    popen->data = nvKmsOpen(curproc->p_pid, NVKMS_CLIENT_USER_SPACE, popen);
+-    sx_xunlock(&nvkms_lock);
+-
+     /*
+      * If nvkms_open() fails, the file descriptor will be closed, and
+      * nvkms_close() will be called to free popen.
+@@ -901,15 +1083,15 @@ static int nvkms_poll(
+         return 0;
+     }
+ 
+-    mtx_lock(&popen->events.lock);
++    mtx_lock(&popen->user.lock);
+ 
+-    if (!popen->events.available) {
+-        selrecord(td, &popen->events.select);
++    if (!popen->user.available) {
++        selrecord(td, &popen->user.select);
+     } else {
+         mask = (events & (POLLIN | POLLPRI | POLLRDNORM));
+     }
+ 
+-    mtx_unlock(&popen->events.lock);
++    mtx_unlock(&popen->user.lock);
+ 
+     return mask;
+ }
+@@ -1032,7 +1214,15 @@ nvidia_modeset_loader(struct module *m, int what, void *arg)
+             return ret;
+         }
+ 
+-        sx_init(&nvkms_lock, "nvidia-modeset lock");
++        /*
++         * nvkms_lock will be recursed on, specifically through the nvkms
++         * taskqueue callback. This will lock nvkms_lock, then dispatch the
++         * callback which may end up calling a function (i.e.
++         * nvkms_ioctl_commmon) that locks nvkms_lock again. This is allowed
++         * if we specify the SX_RECURSE flag, and also matches the Linux
++         * locking behavior.
++         */
++        sx_init_flags(&nvkms_lock, "nvidia-modeset lock", SX_RECURSE);
+         sx_init(&nvkms_module.lock, "nvidia-modeset module data lock");
+         nvkms_module.client_counter = 0;
+         nvkms_module.is_unloading = NV_FALSE;
+@@ -1170,6 +1360,8 @@ DECLARE_MODULE(nvidia_modeset,              /* module name */
+                SI_SUB_DRIVERS,              /* subsystem */
+                SI_ORDER_ANY);               /* initialization order */
+ 
++MODULE_VERSION(nvidia_modeset, 1);
++
+ MODULE_DEPEND(nvidia_modeset,               /* module name */
+               nvidia,                       /* prerequisite module */
+               1, 1, 1);                     /* vmin, vpref, vmax */
+-- 
+2.35.1
+

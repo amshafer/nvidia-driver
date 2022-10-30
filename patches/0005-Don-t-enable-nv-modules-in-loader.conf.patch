@@ -1,0 +1,24 @@
+From 148090080b429ed76d98469c9d64c384c70d6370 Mon Sep 17 00:00:00 2001
+From: Austin Shafer <ashafer@nvidia.com>
+Date: Sun, 13 Feb 2022 20:26:12 -0500
+Subject: [PATCH 5/8] Don't enable nv modules in loader.conf
+
+This can cause panics
+---
+ nvidia/scripts/setup.sh | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/nvidia/scripts/setup.sh b/nvidia/scripts/setup.sh
+index 1a896a528cd..bdaccbc0f3c 100755
+--- a/nvidia/scripts/setup.sh
++++ b/nvidia/scripts/setup.sh
+@@ -64,6 +64,3 @@ unload_module "nvidia"
+ load_module "nvidia"
+ load_module "nvidia-modeset"
+ 
+-load_module_on_boot "nvidia" "nvidia"
+-load_module_on_boot "nvidia_modeset" "nvidia-modeset"
+-
+-- 
+2.35.1
+
