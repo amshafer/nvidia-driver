@@ -1,7 +1,7 @@
-From 6ff2368293f34fd487a323e76882e5e81419fac6 Mon Sep 17 00:00:00 2001
+From e234058e1081cfc2080eecb911fcc8a30f32177b Mon Sep 17 00:00:00 2001
 From: Austin Shafer <ashafer@nvidia.com>
 Date: Sun, 16 Oct 2022 11:29:12 -0400
-Subject: [PATCH 1/8] FreeBSD: pass address to kmem_free/pmap_unmapdev on 14.0
+Subject: [PATCH 1/5] FreeBSD: pass address to kmem_free/pmap_unmapdev on 14.0
  and higher
 
 This solves a compilation issue on CURRENT where we have a mismatch in

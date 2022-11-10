@@ -1,7 +1,7 @@
-From 97ed20be4710c2e21fb2ea9246aeacb78ba17187 Mon Sep 17 00:00:00 2001
+From 10bc9a606b2535ac56e9936bc965ad12f75751d7 Mon Sep 17 00:00:00 2001
 From: Austin Shafer <ashafer@nvidia.com>
 Date: Sun, 16 Oct 2022 11:42:21 -0400
-Subject: [PATCH 2/8] FreeBSD: check if DRIVER_MODULE takes a devclass argument
+Subject: [PATCH 2/5] FreeBSD: check if DRIVER_MODULE takes a devclass argument
 
 As of 2e32d4e41d205d6f14834f87306a77ff77b9c0bd the devclass argument
 was removed from DRIVER_MODULE since it was not used. This changes

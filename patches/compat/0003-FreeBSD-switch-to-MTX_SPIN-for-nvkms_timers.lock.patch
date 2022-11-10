@@ -1,7 +1,7 @@
-From 4c12e89775113c30e27fe14ce6219c63f90edd28 Mon Sep 17 00:00:00 2001
+From 1e01360d2a1a4acf4532dd60542b74b30584bd37 Mon Sep 17 00:00:00 2001
 From: Austin Shafer <ashafer@nvidia.com>
 Date: Tue, 25 Oct 2022 12:12:09 -0400
-Subject: [PATCH 3/8] FreeBSD: switch to MTX_SPIN for nvkms_timers.lock
+Subject: [PATCH 3/5] FreeBSD: switch to MTX_SPIN for nvkms_timers.lock
 
 This prevents a kernel panic we potentially see if nvkms_timers.lock
 is locked during an interrupt. sx locks are not valid during interrupts,

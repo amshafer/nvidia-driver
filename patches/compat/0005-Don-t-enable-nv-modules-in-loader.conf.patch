@@ -1,7 +1,7 @@
-From 148090080b429ed76d98469c9d64c384c70d6370 Mon Sep 17 00:00:00 2001
+From 3314a3fb2f386a3ab206f2afc35043f3aa8b130c Mon Sep 17 00:00:00 2001
 From: Austin Shafer <ashafer@nvidia.com>
 Date: Sun, 13 Feb 2022 20:26:12 -0500
-Subject: [PATCH 5/8] Don't enable nv modules in loader.conf
+Subject: [PATCH 5/5] Don't enable nv modules in loader.conf
 
 This can cause panics
 ---

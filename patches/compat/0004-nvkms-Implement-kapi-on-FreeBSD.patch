@@ -1,7 +1,7 @@
-From 9eda9ea21475cc56c610a4d9fca7d42f84904189 Mon Sep 17 00:00:00 2001
+From 4982b80d576710ad7c6918c8963768d173e26406 Mon Sep 17 00:00:00 2001
 From: Austin Shafer <ashafer@nvidia.com>
 Date: Sun, 26 Sep 2021 01:23:07 -0400
-Subject: [PATCH 4/8] nvkms: Implement kapi on FreeBSD
+Subject: [PATCH 4/5] nvkms: Implement kapi on FreeBSD
 
 This is needed for nvidia-drm, which use kapi to interact with nvkms.
 This implementation is very similar to the Linux implementation, where

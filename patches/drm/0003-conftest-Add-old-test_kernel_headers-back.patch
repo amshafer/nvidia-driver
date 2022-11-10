@@ -1,7 +1,7 @@
-From 8280aa556cc5efdb9db4d474c2977bfda263cf24 Mon Sep 17 00:00:00 2001
+From 5a9300e840b6cd32f1aec3252eba3363408daa49 Mon Sep 17 00:00:00 2001
 From: Austin Shafer <ashafer@nvidia.com>
 Date: Mon, 17 Oct 2022 16:15:46 -0400
-Subject: [PATCH 8/8] conftest: Add old test_kernel_headers back
+Subject: [PATCH 3/3] conftest: Add old test_kernel_headers back
 
 This was redone to be parallelized in the linux build, but this
 is easier to do the original way so just add the original test

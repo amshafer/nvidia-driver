@@ -1,7 +1,7 @@
-From 93ed67f9b54aaa952a8bb65b28a7ca57efeab683 Mon Sep 17 00:00:00 2001
+From 6674dbb69897746bab51b094d28bbfec41fe71e7 Mon Sep 17 00:00:00 2001
 From: Austin Shafer <ashafer@nvidia.com>
 Date: Tue, 18 Oct 2022 12:57:10 -0400
-Subject: [PATCH 6/8] nvidia-drm: Add build logic for FreeBSD
+Subject: [PATCH] nvidia-drm: Add build logic for FreeBSD
 
 This adds infrastructure for building nvidia-drm, but not any
 compilation fixes or FreeBSD workarounds. This is just build system
@@ -11,15 +11,14 @@ This also includes WARs in the conftest script to handle FreeBSD
 ---
  .../resman/arch/nvalloc/unix/FreeBSD/Makefile |   4 +
  .../arch/nvalloc/unix/Linux/conftest.sh       |  60 +++--
- nvidia/src/Makefile  |   4 +
  nvidia/src/nvidia-drm/Makefile      | 205 ++++++++++++++++++
- 4 files changed, 238 insertions(+), 35 deletions(-)
+ 3 files changed, 234 insertions(+), 35 deletions(-)
  create mode 100644 nvidia/src/nvidia-drm/Makefile
 
-diff --git a/nvidia/src/nvidia/Makefile b/nvidia/src/nvidia/Makefile
+diff --git a/nvidia/src/Makefile b/nvidia/src/Makefile
 index 97c031cfdb2..95b12a350b1 100644
---- a/nvidia/src/nvidia/Makefile
-+++ b/nvidia/src/nvidia/Makefile
+--- a/nvidia/src/Makefile
++++ b/nvidia/src/Makefile
 @@ -4,6 +4,10 @@ SUBDIR= nvidia
  SUBDIR+= nvidia-modeset
  .endif
@@ -186,24 +185,9 @@ index 6dc83e39a2f..58b69ee7bb5 100755
                                         struct page **pages,
                                         struct vm_area_struct **vmas,
                                         int *locked) {
-diff --git a/nvidia/src/Makefile b/nvidia/src/Makefile
-index d7931411d8d..7c011e877ec 100644
---- a/nvidia/src/Makefile
-+++ b/nvidia/src/Makefile
-@@ -7,6 +7,10 @@ SUBDIR=	src \
- SUBDIR+=	nvml
- .endif
- 
-+.if exists(nvidia-drm)
-+SUBDIR+= nvidia-drm
-+.endif
-+
- afterinstall:
- 	@${.CURDIR}/scripts/setup.sh ${.CURDIR}/src
- 	@${.CURDIR}/scripts/linux.sh
 diff --git a/nvidia/src/nvidia-drm/Makefile b/nvidia/src/nvidia-drm/Makefile
 new file mode 100644
-index 00000000000..2e0e697ee07
+index 00000000000..24cd7bfc55d
 --- /dev/null
 +++ b/nvidia/src/nvidia-drm/Makefile
 @@ -0,0 +1,205 @@
@@ -291,20 +275,20 @@ index 00000000000..2e0e697ee07
 +
 +# we need to get the linux kpi headers for compilation. BSDSRCTOP
 +# is the top of a FreeBSD src tree (or empty to use /sys)
-+BSDSRCTOP=/usr/freebsd-src
++BSDSRCTOP ?= /usr/src
 +# FreeBSD linuxkpi specific headers
 +# This is the path at which https://github.com/freebsd/drm-kmod is installed
-+DRMKMODDIR=/home/ashafer/git/drm-kmod
++DRMKMODDIR ?= ${HOME}/git/drm-kmod
 +
 +NV_CONFTEST_CFLAGS = \
-+		-I${DRMKMODDIR}/linuxkpi/bsd/include \
++        -I${DRMKMODDIR}/linuxkpi/bsd/include \
 +        -I${DRMKMODDIR}/linuxkpi/gplv2/include/ \
 +        -I${SYSDIR}/compat/linuxkpi/common/include/ \
 +        -I${DRMKMODDIR}/linuxkpi/dummy/include/ \
 +        -I${DRMKMODDIR}/include/ \
 +        -I${DRMKMODDIR}/include/uapi/ \
 +        -I${DRMKMODDIR}/drivers/gpu/ \
-+		-I${BSDSRCTOP}/sys/contrib/ck/include
++        -I${BSDSRCTOP}/sys/contrib/ck/include
 +
 +CFLAGS += ${NV_CONFTEST_CFLAGS}
 +
