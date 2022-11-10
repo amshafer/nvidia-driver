@@ -16,6 +16,40 @@ very stable and can be used to comfortably run a Wayland desktop, more testing
 is needed before this starts to make its way into the ports tree. Please help
 by giving it a go and reporting any issues you may find!
 
+## Branch Structure
+
+All infrastructure and patches are contained in the `baseline` branch. This has
+a driver source code applied on top of it, which the patches are then applied
+to. Branch names are always the version number of the driver they contain. i.e.
+if you want a `525.XX.X` driver check out the `525.XX.X` branch.
+
+Please note that 525 is the first driver series with full `nvidia-drm` support,
+drivers that predate this lack the closed-source Nvidia changes necessary.
+
+## Dependencies
+
+There are two main things that this driver is dependent on: the FreeBSD src
+tree and the [drm-kmod](https://github.com/freebsd/drm-kmod) port. The normal
+FreeBSD nvidia driver is dependent on the source tree, but `drm-kmod` is new.
+
+To make this easier there are two variables you can override to set the
+reference locations:
+* `BSDSRCTOP` - defaults to `/usr/src`
+* `DRMKMODDIR` - defaults to `~/git/drm-kmod/`
+
+You can then override them with something like
+`DRMKMODDIR=/home/ashafer/git/drm-kmod/ make`.
+
+Ensure that both of these are populated with their corresponding projects
+via the following:
+```
+git clone https://github.com/freebsd/freebsd-src/ 
+git clone https://github.com/freebsd/drm-kmod 
+```
+
+In the case of `drm-kmod` you may wish to specify a branch. This is especially
+necessary if you are trying to mix this driver with `drm-kmod` build from ports
+(which I don't recommend just yet, build drm-kmod yourself).
 
 ## Installing
 
@@ -24,6 +58,12 @@ $ cd nvidia
 $ make && make install
 $ kldload nvidia-drm
 ```
+
+## Reporting issues
+
+Please report issues with thorough descriptions of how to reproduce the
+problem, preferably accompanied by a coredump summary or stack trace when
+appropriate. This makes things significantly easier to debug.
 
 # Known Issues
 
@@ -43,3 +83,7 @@ known issues that are currently not supported:
 ## Other Relevant Links
 * https://badland.io/nvidia-drm.md
 * https://badland.io/nvidia.md
+
+## How to update this port
+
+Updating information can be found in [UPDATING.md](UPDATING.md)
