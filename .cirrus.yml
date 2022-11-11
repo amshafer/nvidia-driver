@@ -1,0 +1,17 @@
+freebsd_current_task:
+  freebsd_instance:
+    image_family: freebsd-14-0-snap
+
+  env:
+    HOME: /tmp/ # Cirrus FreeBSD images do not specify home by default
+
+  install_dependencies_script: pkg install -y nvidia-driver git
+  # Cirrus images already have their source checked out in /usr/src
+  #
+  # clone_freebsd_source_script: git clone --depth 1 https://github.com/freebsd/freebsd-src/ /usr/src
+  clone_drm_kmod_source_script:
+    - mkdir -p $HOME/git
+    - git clone --depth 1 https://github.com/freebsd/drm-kmod $HOME/git/drm-kmod
+
+  # Kick of our build
+  build_script: make -j `sysctl -n hw.ncpu` -C nvidia/
