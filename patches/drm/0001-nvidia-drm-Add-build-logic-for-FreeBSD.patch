@@ -1,7 +1,7 @@
-From 6674dbb69897746bab51b094d28bbfec41fe71e7 Mon Sep 17 00:00:00 2001
+From b829d2b2ea5b82687d47e8da9806814ef3db5643 Mon Sep 17 00:00:00 2001
 From: Austin Shafer <ashafer@nvidia.com>
 Date: Tue, 18 Oct 2022 12:57:10 -0400
-Subject: [PATCH] nvidia-drm: Add build logic for FreeBSD
+Subject: [PATCH 1/3] nvidia-drm: Add build logic for FreeBSD
 
 This adds infrastructure for building nvidia-drm, but not any
 compilation fixes or FreeBSD workarounds. This is just build system
@@ -10,9 +10,9 @@ changes.
 This also includes WARs in the conftest script to handle FreeBSD
 ---
  .../resman/arch/nvalloc/unix/FreeBSD/Makefile |   4 +
- .../arch/nvalloc/unix/Linux/conftest.sh       |  60 +++--
- nvidia/src/nvidia-drm/Makefile      | 205 ++++++++++++++++++
- 3 files changed, 234 insertions(+), 35 deletions(-)
+ .../arch/nvalloc/unix/Linux/conftest.sh       |  64 +++---
+ nvidia/src/nvidia-drm/Makefile      | 208 ++++++++++++++++++
+ 3 files changed, 240 insertions(+), 36 deletions(-)
  create mode 100644 nvidia/src/nvidia-drm/Makefile
 
 diff --git a/nvidia/src/Makefile b/nvidia/src/Makefile
@@ -31,7 +31,7 @@ index 97c031cfdb2..95b12a350b1 100644
  
  .include <bsd.subdir.mk>
 diff --git a/nvidia/src/nvidia-drm/conftest.sh b/nvidia/src/nvidia-drm/conftest.sh
-index 6dc83e39a2f..58b69ee7bb5 100755
+index 6170c2f2135..e23ae552acd 100755
 --- a/nvidia/src/nvidia-drm/conftest.sh
 +++ b/nvidia/src/nvidia-drm/conftest.sh
 @@ -14,6 +14,12 @@ OUTPUT=$4
@@ -185,12 +185,23 @@ index 6dc83e39a2f..58b69ee7bb5 100755
                                         struct page **pages,
                                         struct vm_area_struct **vmas,
                                         int *locked) {
+@@ -3520,7 +3510,9 @@ compile_test() {
+             #
+             CODE="
+             #include <linux/mm.h>
+-            vm_fault_t conftest_vm_fault_t;
++            void test_vm_fault_t() {
++                vm_fault_t conftest_vm_fault_t;
++            }
+             "
+             compile_check_conftest "$CODE" "NV_VM_FAULT_T_IS_PRESENT" "" "types"
+         ;;
 diff --git a/nvidia/src/nvidia-drm/Makefile b/nvidia/src/nvidia-drm/Makefile
 new file mode 100644
-index 00000000000..24cd7bfc55d
+index 00000000000..056701ed06b
 --- /dev/null
 +++ b/nvidia/src/nvidia-drm/Makefile
-@@ -0,0 +1,205 @@
+@@ -0,0 +1,208 @@
 +# Build NVIDIA DRM components using the linuxkpi
 +# inspired by the linuxkpi makefile
 +#
@@ -393,6 +404,9 @@ index 00000000000..24cd7bfc55d
 +
 +*.c: ${CONFTEST_FILES}
 +*.h: ${CONFTEST_FILES}
++
++clean:
++	rm -rf conftest
 +
 +.include <bsd.kmod.mk>
 +

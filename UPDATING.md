@@ -44,16 +44,22 @@ to the `nvidia-drm` bits.
 
 ### Applying patches
 
-Applying patches is not completely automated. This is because there will be a certain amount of mismatch with the patches depending on the driver version it is being applied to (due to normal code churn). The workflow uses `git am` with the `--reject` flag to partially apply diffs:
+Applying patches is not completely automated. This is because there will be a
+certain amount of mismatch with the patches depending on the driver version it
+is being applied to (due to normal code churn). The workflow uses `git am` with
+the normal patch utility to partially apply diffs:
 
 ```
 ./populate_driver.sh 525.53
 
 # Apply the compat patches
-git am -3 --reject patches/compat/*
+git am patches/compat/*
 
 # Now apply the DRM patches, order does matter and this must be second
-git am -3 --reject patches/drm/*
+git am patches/drm/*
+
+# If there is a conflict do
+patch -p1 < patches/.../<patch_name>
 
 # If git am cannot merge the above patches it will bail partway through and you
 # must fix things yourself. This is normally fairly trivial conflict resolution.

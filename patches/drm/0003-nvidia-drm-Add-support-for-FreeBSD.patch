@@ -1,7 +1,7 @@
-From 224843afcb13743bcd2e1dfb7be2f58fe1d523f6 Mon Sep 17 00:00:00 2001
+From c6f7dae6cae65d1d9ebaf2748f596a8b96596d46 Mon Sep 17 00:00:00 2001
 From: Austin Shafer <ashafer@nvidia.com>
 Date: Sun, 13 Feb 2022 20:27:07 -0500
-Subject: [PATCH 2/3] nvidia-drm: Add support for FreeBSD
+Subject: [PATCH 3/3] nvidia-drm: Add support for FreeBSD
 
 This is the actual source changes needed to make FreeBSD work. It's
 written in the style of the drm-kmod port, where FreeBSD changes
@@ -13,7 +13,7 @@ are in ifdefs next to the original linux code.
  .../arch/nvalloc/unix/Linux/nv-pci-table.c    |  28 +--
  .../arch/nvalloc/unix/Linux/nv-pci-table.h    |   2 +-
  .../nvidia-drm/Linux/nvidia-drm-conftest.h    |  44 +++-
- .../unix/nvidia-drm/common/nvidia-drm-crtc.c  |  13 +-
+ .../unix/nvidia-drm/common/nvidia-drm-crtc.c  |   6 +-
  .../unix/nvidia-drm/common/nvidia-drm-drv.c   |  36 ++-
  .../unix/nvidia-drm/common/nvidia-drm-fb.c    |   4 +
  .../unix/nvidia-drm/common/nvidia-drm-fence.c |   4 +
@@ -24,11 +24,11 @@ are in ifdefs next to the original linux code.
  .../nvidia-drm/common/nvidia-drm-helper.c     |   4 +
  nvidia/src/nvidia-drm/nvidia-drm.c   |   2 +-
  .../unix/nvidia-drm/include/nvidia-drm-drv.h  |   5 +
- nvidia/src/nvidia-drm/include/nvidia-drm.h  |  47 ++++
+ nvidia/src/nvidia-drm/nvidia-drm.h  |  47 ++++
  .../include/uapi/nvidia-drm-ioctl.h           |   2 +-
  .../FreeBSD/nvidia-modeset-freebsd.c          |   2 +
  .../include/nvidia-modeset-os-interface.h     |   7 +
- 21 files changed, 603 insertions(+), 42 deletions(-)
+ 21 files changed, 597 insertions(+), 41 deletions(-)
  create mode 100644 nvidia/src/nvidia-drm/nvidia-drm-freebsd-lkpi.c
 
 diff --git a/nvidia/src/nvidia/nv-freebsd.h b/nvidia/src/nvidia/nv-freebsd.h
@@ -193,7 +193,7 @@ index bed8d812656..bfc5da74a43 100644
 +
  #endif /* defined(__NVIDIA_DRM_CONFTEST_H__) */
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-crtc.c b/nvidia/src/nvidia-drm/nvidia-drm-crtc.c
-index 51d6324cbcc..91ca4ce832d 100644
+index 51d6324cbcc..66d08478dfa 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-crtc.c
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-crtc.c
 @@ -584,7 +584,7 @@ static int nv_drm_plane_atomic_set_property(
@@ -217,22 +217,8 @@ index 51d6324cbcc..91ca4ce832d 100644
  #endif
          plane_type
  #if defined(NV_DRM_UNIVERSAL_PLANE_INIT_HAS_NAME_ARG)
-@@ -1157,7 +1161,12 @@ failed:
- /*
-  * Add drm crtc for given head and supported enum NvKmsSurfaceMemoryFormats.
-  */
--static struct drm_crtc *__nv_drm_crtc_create(struct nv_drm_device *nv_dev,
-+extern struct drm_crtc *__nv_drm_crtc_create(struct nv_drm_device *nv_dev,
-+                                             struct drm_plane *primary_plane,
-+                                             struct drm_plane *cursor_plane,
-+                                             unsigned int head);
-+
-+struct drm_crtc *__nv_drm_crtc_create(struct nv_drm_device *nv_dev,
-                                              struct drm_plane *primary_plane,
-                                              struct drm_plane *cursor_plane,
-                                              unsigned int head)
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-drv.c b/nvidia/src/nvidia-drm/nvidia-drm-drv.c
-index 0871f1a2cc6..6ee9848189a 100644
+index 0871f1a2cc6..bcf66b512c8 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-drv.c
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-drv.c
 @@ -22,6 +22,11 @@
@@ -252,7 +238,7 @@ index 0871f1a2cc6..6ee9848189a 100644
  #endif
  
 -static struct nv_drm_device *dev_list = NULL;
-+struct nv_drm_device *nv_dev_list = NULL;
++static struct nv_drm_device *nv_dev_list = NULL;
  
  static const char* nv_get_input_colorspace_name(
      enum NvKmsInputColorSpace colorSpace)
@@ -951,10 +937,10 @@ index a191ccf7c60..cc0978ca7e5 100644
  }
  
  void nv_drm_exit(void)
-diff --git a/nvidia/src/nvidia-drm/include/nvidia-drm-drv.h b/nvidia/src/nvidia-drm/include/nvidia-drm-drv.h
+diff --git a/nvidia/src/nvidia-drm/nvidia-drm-drv.h b/nvidia/src/nvidia-drm/nvidia-drm-drv.h
 index cd20ec93fe3..95b0688eaf9 100644
---- a/nvidia/src/nvidia-drm/include/nvidia-drm-drv.h
-+++ b/nvidia/src/nvidia-drm/include/nvidia-drm-drv.h
+--- a/nvidia/src/nvidia-drm/nvidia-drm-drv.h
++++ b/nvidia/src/nvidia-drm/nvidia-drm-drv.h
 @@ -31,6 +31,11 @@ int nv_drm_probe_devices(void);
  
  void nv_drm_remove_devices(void);
@@ -967,10 +953,10 @@ index cd20ec93fe3..95b0688eaf9 100644
  #endif /* defined(NV_DRM_AVAILABLE) */
  
  #endif /* __NVIDIA_DRM_DRV_H__ */
-diff --git a/nvidia/src/nvidia-drm/include/nvidia-drm.h b/nvidia/src/nvidia-drm/include/nvidia-drm.h
+diff --git a/nvidia/src/nvidia-drm/nvidia-drm.h b/nvidia/src/nvidia-drm/nvidia-drm.h
 index 9f1c31ce3f7..cbd47ab11a3 100644
---- a/nvidia/src/nvidia-drm/include/nvidia-drm.h
-+++ b/nvidia/src/nvidia-drm/include/nvidia-drm.h
+--- a/nvidia/src/nvidia-drm/nvidia-drm.h
++++ b/nvidia/src/nvidia-drm/nvidia-drm.h
 @@ -25,6 +25,53 @@
  
  #include "nvidia-drm-conftest.h"
@@ -1025,10 +1011,10 @@ index 9f1c31ce3f7..cbd47ab11a3 100644
  int nv_drm_init(void);
  void nv_drm_exit(void);
  
-diff --git a/nvidia/src/nvidia-drm/include/uapi/nvidia-drm-ioctl.h b/nvidia/src/nvidia-drm/include/uapi/nvidia-drm-ioctl.h
+diff --git a/nvidia/src/nvidia-drm/nvidia-drm-ioctl.h b/nvidia/src/nvidia-drm/nvidia-drm-ioctl.h
 index 850bd0c39dc..93099dead6d 100644
---- a/nvidia/src/nvidia-drm/include/uapi/nvidia-drm-ioctl.h
-+++ b/nvidia/src/nvidia-drm/include/uapi/nvidia-drm-ioctl.h
+--- a/nvidia/src/nvidia-drm/nvidia-drm-ioctl.h
++++ b/nvidia/src/nvidia-drm/nvidia-drm-ioctl.h
 @@ -63,7 +63,7 @@
   *
   * 'warning: suggest parentheses around arithmetic in operand of |'
@@ -1039,7 +1025,7 @@ index 850bd0c39dc..93099dead6d 100644
      DRM_IO(DRM_COMMAND_BASE + DRM_NVIDIA_FENCE_SUPPORTED)
  #define DRM_IOCTL_NVIDIA_DMABUF_SUPPORTED                        \
 diff --git a/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c b/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c
-index 096553e6f1c..4d6d15afd6b 100644
+index d1f88e9d829..d1aa5e7c59d 100644
 --- a/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c
 +++ b/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c
 @@ -28,6 +28,8 @@

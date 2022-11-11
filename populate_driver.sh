@@ -81,6 +81,7 @@ cp ${LINUX_DRIVER_DIR}/kernel/nvidia/nv-pci-table.* ./nvidia/src/nvidia-drm/
 # Touch any files that we want to add during the patching phase. We
 # need them to be present in the git history
 touch ./nvidia/src/nvidia-drm/Makefile
+touch ./nvidia/src/nvidia-drm/nvidia-drm-freebsd-lkpi.c
 
 # clean up our environment
 rm -rf ${TMPDIR}
