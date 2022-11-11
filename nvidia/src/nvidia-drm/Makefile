@@ -31,7 +31,7 @@ SRCS += \
 	nvidia-drm-ioctl.h \
 	nvidia-drm-modeset.h \
 	nvidia-drm-os-interface.h \
-	nvidia-drm-fence.h \
+	nvidia-drm-prime-fence.h \
 	nvidia-drm-priv.h \
 	nvidia-drm-utils.h \
 	nv-pci-table.h \
@@ -51,7 +51,7 @@ SRCS += \
 	nvidia-drm-gem.c \
 	nvidia-drm-helper.c \
 	nvidia-drm-modeset.c \
-	nvidia-drm-fence.c \
+	nvidia-drm-prime-fence.c \
 	nvidia-drm-utils.c \
 	nv-pci-table.c \
 	nvidia-drm.c
