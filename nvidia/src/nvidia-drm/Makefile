@@ -133,11 +133,14 @@ NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_dev_unref
 NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_reinit_primary_mode_group
 NV_CONFTEST_FUNCTION_COMPILE_TESTS += get_user_pages_remote
 NV_CONFTEST_FUNCTION_COMPILE_TESTS += get_user_pages
+NV_CONFTEST_FUNCTION_COMPILE_TESTS += pin_user_pages_remote
+NV_CONFTEST_FUNCTION_COMPILE_TESTS += pin_user_pages
 NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_gem_object_lookup
 NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_atomic_state_ref_counting
 NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_driver_has_gem_prime_res_obj
 NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_atomic_helper_connector_dpms
 NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_connector_funcs_have_mode_in_name
+NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_connector_has_vrr_capable_property
 NV_CONFTEST_FUNCTION_COMPILE_TESTS += vmf_insert_pfn
 NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_framebuffer_get
 NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_gem_object_get
@@ -147,6 +150,7 @@ NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_connector_for_each_possible_encoder
 NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_rotation_available
 NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_vma_offset_exact_lookup_locked
 NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_gem_object_put_unlocked
+NV_CONFTEST_FUNCTION_COMPILE_TESTS += nvhost_dma_fence_unpack
 
 conftest/function.h: ${PWD}/conftest.sh ${DRMKMODDIR}
 	mkdir -p conftest
@@ -177,6 +181,7 @@ NV_CONFTEST_TYPE_COMPILE_TESTS += vm_fault_t
 NV_CONFTEST_TYPE_COMPILE_TESTS += drm_gem_object_has_resv
 NV_CONFTEST_TYPE_COMPILE_TESTS += drm_crtc_state_has_async_flip
 NV_CONFTEST_TYPE_COMPILE_TESTS += drm_crtc_state_has_pageflip_flags
+NV_CONFTEST_TYPE_COMPILE_TESTS += drm_crtc_state_has_vrr_enabled
 NV_CONFTEST_TYPE_COMPILE_TESTS += drm_format_modifiers_present
 NV_CONFTEST_TYPE_COMPILE_TESTS += mm_has_mmap_lock
 NV_CONFTEST_TYPE_COMPILE_TESTS += drm_vma_node_is_allowed_has_tag_arg
@@ -189,6 +194,13 @@ NV_CONFTEST_TYPE_COMPILE_TESTS += drm_driver_has_gem_prime_callbacks
 NV_CONFTEST_TYPE_COMPILE_TESTS += drm_crtc_atomic_check_has_atomic_state_arg
 NV_CONFTEST_TYPE_COMPILE_TESTS += drm_gem_object_vmap_has_map_arg
 NV_CONFTEST_TYPE_COMPILE_TESTS += drm_plane_atomic_check_has_atomic_state_arg
+NV_CONFTEST_TYPE_COMPILE_TESTS += drm_device_has_pdev
+NV_CONFTEST_TYPE_COMPILE_TESTS += drm_crtc_state_has_no_vblank
+NV_CONFTEST_TYPE_COMPILE_TESTS += drm_mode_config_has_allow_fb_modifiers
+NV_CONFTEST_TYPE_COMPILE_TESTS += drm_has_hdr_output_metadata
+NV_CONFTEST_TYPE_COMPILE_TESTS += dma_resv_add_fence
+NV_CONFTEST_TYPE_COMPILE_TESTS += dma_resv_reserve_fences
+NV_CONFTEST_TYPE_COMPILE_TESTS += reservation_object_reserve_shared_has_num_fences_arg
 
 conftest/type.h: ${PWD}/conftest.sh ${DRMKMODDIR}
 	mkdir -p conftest
