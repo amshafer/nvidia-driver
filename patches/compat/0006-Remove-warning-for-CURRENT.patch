@@ -1,0 +1,24 @@
+From c54bf07c75b9e5363086d1ac637fe8339f0d19f6 Mon Sep 17 00:00:00 2001
+From: Austin Shafer <ashafer@nvidia.com>
+Date: Sun, 4 Dec 2022 14:16:01 -0500
+Subject: [PATCH] Remove warning for CURRENT
+
+---
+ nvidia/src/nvidia/nv-freebsd.h | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/nvidia/src/nvidia/nv-freebsd.h b/nvidia/src/nvidia/nv-freebsd.h
+index 2f081dce009..4d5daeab4fc 100644
+--- a/nvidia/src/nvidia/nv-freebsd.h
++++ b/nvidia/src/nvidia/nv-freebsd.h
+@@ -14,7 +14,6 @@
+ #include <sys/param.h>
+ 
+ #if __FreeBSD_version >= 1400000
+-#error This driver does not support FreeBSD 14.x/-CURRENT!
+ #endif
+ #if __FreeBSD_version >= 1300000 && __FreeBSD_version < 1300139
+ #error This driver requires FreeBSD 13.0-RC1 or later!
+-- 
+2.35.1
+
