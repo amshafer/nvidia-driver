@@ -1,4 +1,4 @@
-From 66f5270763aa169f88bbf677dd1c4ff20f61e283 Mon Sep 17 00:00:00 2001
+From fc66ffe3f9700556a05571790bc36fa1685ed39e Mon Sep 17 00:00:00 2001
 From: Austin Shafer <ashafer@nvidia.com>
 Date: Mon, 17 Oct 2022 16:15:46 -0400
 Subject: [PATCH 2/3] conftest: Add old test_kernel_headers back
