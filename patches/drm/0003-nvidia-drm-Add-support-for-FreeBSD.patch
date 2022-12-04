@@ -1,4 +1,4 @@
-From 836ade423195088f026156428bb6c741a01d7c58 Mon Sep 17 00:00:00 2001
+From 7189647e75bc7c540b67b7d71b442587b63efe7d Mon Sep 17 00:00:00 2001
 From: Austin Shafer <ashafer@nvidia.com>
 Date: Sun, 13 Feb 2022 20:27:07 -0500
 Subject: [PATCH 3/3] nvidia-drm: Add support for FreeBSD
@@ -7,7 +7,6 @@ This is the actual source changes needed to make FreeBSD work. It's
 written in the style of the drm-kmod port, where FreeBSD changes
 are in ifdefs next to the original linux code.
 ---
- .../arch/nvalloc/unix/FreeBSD/nv-freebsd.h    |   1 -
  .../arch/nvalloc/unix/FreeBSD/nvidia_pci.c    |   1 +
  .../resman/arch/nvalloc/unix/Linux/nv-mm.h    |  10 +
  .../arch/nvalloc/unix/Linux/nv-pci-table.c    |  28 +--
@@ -20,28 +19,16 @@ are in ifdefs next to the original linux code.
  .../common/nvidia-drm-freebsd-lkpi.c          | 236 ++++++++++++++++++
  .../common/nvidia-drm-gem-dma-buf.c           |  32 +++
  .../common/nvidia-drm-gem-nvkms-memory.c      |  90 ++++++-
- .../common/nvidia-drm-gem-user-memory.c       |  75 +++++-
+ .../common/nvidia-drm-gem-user-memory.c       |  71 ++++++
  .../nvidia-drm/common/nvidia-drm-helper.c     |   4 +
  nvidia/src/nvidia-drm/nvidia-drm.c   |   2 +-
  .../unix/nvidia-drm/include/nvidia-drm-drv.h  |   5 +
  nvidia/src/nvidia-drm/nvidia-drm.h  |  47 ++++
  .../include/uapi/nvidia-drm-ioctl.h           |   2 +-
  .../FreeBSD/nvidia-modeset-freebsd.c          |   2 +
- 20 files changed, 590 insertions(+), 41 deletions(-)
+ 19 files changed, 590 insertions(+), 36 deletions(-)
  create mode 100644 nvidia/src/nvidia-drm/nvidia-drm-freebsd-lkpi.c
 
-diff --git a/nvidia/src/nvidia/nv-freebsd.h b/nvidia/src/nvidia/nv-freebsd.h
-index 2f081dce009..4d5daeab4fc 100644
---- a/nvidia/src/nvidia/nv-freebsd.h
-+++ b/nvidia/src/nvidia/nv-freebsd.h
-@@ -14,7 +14,6 @@
- #include <sys/param.h>
- 
- #if __FreeBSD_version >= 1400000
--#error This driver does not support FreeBSD 14.x/-CURRENT!
- #endif
- #if __FreeBSD_version >= 1300000 && __FreeBSD_version < 1300139
- #error This driver requires FreeBSD 13.0-RC1 or later!
 diff --git a/nvidia/src/nvidia/nvidia_pci.c b/nvidia/src/nvidia/nvidia_pci.c
 index 3b5d0952003..0a9331c902e 100644
 --- a/nvidia/src/nvidia/nvidia_pci.c
@@ -791,7 +778,7 @@ index 842238d186e..72a4d9817db 100644
                                                     &nv_nvkms_memory->base,
                                                     &args->handle);
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-gem-user-memory.c b/nvidia/src/nvidia-drm/nvidia-drm-gem-user-memory.c
-index e9bc57f9fff..b2ffed20458 100644
+index e9bc57f9fff..e37e622c8bc 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-gem-user-memory.c
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-gem-user-memory.c
 @@ -35,6 +35,7 @@
@@ -802,15 +789,10 @@ index e9bc57f9fff..b2ffed20458 100644
  
  static inline
  void __nv_drm_gem_user_memory_free(struct nv_drm_gem_object *nv_gem)
-@@ -112,11 +113,68 @@ static vm_fault_t __nv_drm_gem_user_memory_handle_vma_fault(
- 
-     page_offset = vmf->pgoff - drm_vma_node_start(&gem->vma_node);
- 
--#if NVCFG(GLOBAL_FEATURE_SECURITY_ROLLOUT_4_2022)
--    BUG_ON(page_offset >= nv_user_memory->pages_count);
--#else
+@@ -117,6 +118,67 @@ static vm_fault_t __nv_drm_gem_user_memory_handle_vma_fault(
+ #else
      BUG_ON(page_offset > nv_user_memory->pages_count);
--#endif
+ #endif
 +
 +#ifndef __linux__
 +    /*
@@ -875,7 +857,7 @@ index e9bc57f9fff..b2ffed20458 100644
      ret = vm_insert_page(vma, address, nv_user_memory->pages[page_offset]);
      switch (ret) {
          case 0:
-@@ -135,6 +193,7 @@ static vm_fault_t __nv_drm_gem_user_memory_handle_vma_fault(
+@@ -135,6 +197,7 @@ static vm_fault_t __nv_drm_gem_user_memory_handle_vma_fault(
              ret = VM_FAULT_SIGBUS;
              break;
      }
@@ -883,7 +865,7 @@ index e9bc57f9fff..b2ffed20458 100644
  
      return ret;
  }
-@@ -174,7 +233,11 @@ int nv_drm_gem_import_userspace_memory_ioctl(struct drm_device *dev,
+@@ -174,7 +237,11 @@ int nv_drm_gem_import_userspace_memory_ioctl(struct drm_device *dev,
      if ((params->size % PAGE_SIZE) != 0) {
          NV_DRM_DEV_LOG_ERR(
              nv_dev,
@@ -895,7 +877,7 @@ index e9bc57f9fff..b2ffed20458 100644
              "size to create a gem object",
              params->address);
          return -EINVAL;
-@@ -187,7 +250,11 @@ int nv_drm_gem_import_userspace_memory_ioctl(struct drm_device *dev,
+@@ -187,7 +254,11 @@ int nv_drm_gem_import_userspace_memory_ioctl(struct drm_device *dev,
      if (ret != 0) {
          NV_DRM_DEV_LOG_ERR(
              nv_dev,
