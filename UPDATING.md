@@ -9,6 +9,13 @@ In summary, the steps are:
 * Apply the patches
 * Test the build
 
+#### NOTE
+
+These steps are usually performed by the owner of this repository. If you plan
+on using this to update a driver please be aware that you may be duplicating
+work. If the driver version you need has not been populated feel free to reach
+out and request it.
+
 ### Baseline 
 
 The `baseline` branch is the starting point. All driver versions will branch
@@ -19,7 +26,12 @@ once it is populated.
 
 ### Populating a driver
 
-Driver population is automated by the `populate_driver.sh` script. This script accepts a driver version number, and will go download the corresponding FreeBSD and Linux drivers. It will then unpack the drivers to their proper locations in the `nvidia/` subdir. Both drivers are needed since the `nvidia-drm` files will come from the Linux driver as they are not currently shipped in the FreeBSD tarball.
+Driver population is automated by the `populate_driver.sh` script. This script
+accepts a driver version number, and will go download the corresponding FreeBSD
+and Linux drivers. It will then unpack the drivers to their proper locations in
+the `nvidia/` subdir. Both drivers are needed since the `nvidia-drm` files will
+come from the Linux driver as they are not currently shipped in the FreeBSD
+tarball.
 
 ```
 # Checkout the 525.53 beta driver, the first with nvidia-drm support
