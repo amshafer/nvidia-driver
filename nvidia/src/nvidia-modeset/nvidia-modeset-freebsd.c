@@ -796,7 +796,7 @@ void nvkms_unregister_backlight(struct nvkms_backlight_device *nvkms_bd)
  * - don't handle NVKMS_CLIENT_USER_SPACE (thats nvkms_open)
  * - doesn't do select, uses task queueing
  */
-struct nvkms_per_open *nvkms_open_common(enum NvKmsClientType type,
+static struct nvkms_per_open *nvkms_open_common(enum NvKmsClientType type,
                                          struct NvKmsKapiDevice *device,
                                          int *status)
 {
@@ -857,7 +857,7 @@ failed:
     return NULL;
 }
 
-void nvkms_close_common(struct nvkms_per_open *popen)
+static void nvkms_close_common(struct nvkms_per_open *popen)
 {
     sx_xlock(&nvkms_lock);
     nvKmsClose(popen->data);
@@ -895,7 +895,7 @@ void nvkms_close_common(struct nvkms_per_open *popen)
     sx_xunlock(&nvkms_module.lock);
 }
 
-int nvkms_ioctl_common
+static int nvkms_ioctl_common
 (
     struct nvkms_per_open *popen,
     NvU32 cmd, NvU64 address, const size_t size
