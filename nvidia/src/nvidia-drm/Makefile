@@ -73,6 +73,9 @@ CFLAGS += -I${SYSDIR}/sys
 
 CFLAGS += -g -I/usr/include -I../common/inc -O0 -Wno-visibility -Wno-error=unused-but-set-variable
 
+# to workaround dma-buf-map.h
+CFLAGS += -Wno-error=pointer-arith
+
 # make sure /usr/include is before all the other includes
 #CFLAGS = "-I/usr/include/ $CFLAGS"
 
