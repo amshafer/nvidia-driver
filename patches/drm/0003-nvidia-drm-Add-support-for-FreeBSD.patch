@@ -1,4 +1,4 @@
-From 7189647e75bc7c540b67b7d71b442587b63efe7d Mon Sep 17 00:00:00 2001
+From f964eef8f8137e724ecc1d8511812055c05d0fd2 Mon Sep 17 00:00:00 2001
 From: Austin Shafer <ashafer@nvidia.com>
 Date: Sun, 13 Feb 2022 20:27:07 -0500
 Subject: [PATCH 3/3] nvidia-drm: Add support for FreeBSD
@@ -179,7 +179,7 @@ index bed8d812656..bfc5da74a43 100644
 +
  #endif /* defined(__NVIDIA_DRM_CONFTEST_H__) */
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-crtc.c b/nvidia/src/nvidia-drm/nvidia-drm-crtc.c
-index 51d6324cbcc..66d08478dfa 100644
+index e9fc3fd8189..53d9fcfaddb 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-crtc.c
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-crtc.c
 @@ -584,7 +584,7 @@ static int nv_drm_plane_atomic_set_property(
@@ -204,7 +204,7 @@ index 51d6324cbcc..66d08478dfa 100644
          plane_type
  #if defined(NV_DRM_UNIVERSAL_PLANE_INIT_HAS_NAME_ARG)
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-drv.c b/nvidia/src/nvidia-drm/nvidia-drm-drv.c
-index 0871f1a2cc6..bcf66b512c8 100644
+index e48378faa57..f6407a1e856 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-drv.c
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-drv.c
 @@ -22,6 +22,11 @@
@@ -228,7 +228,7 @@ index 0871f1a2cc6..bcf66b512c8 100644
  
  static const char* nv_get_input_colorspace_name(
      enum NvKmsInputColorSpace colorSpace)
-@@ -923,7 +928,7 @@ static struct drm_driver nv_drm_driver = {
+@@ -1421,7 +1426,7 @@ static struct drm_driver nv_drm_driver = {
   * kernel supports atomic modeset and the 'modeset' kernel module
   * parameter is true.
   */
@@ -237,7 +237,7 @@ index 0871f1a2cc6..bcf66b512c8 100644
  {
  #if defined(NV_DRM_ATOMIC_MODESET_AVAILABLE)
  
-@@ -947,7 +952,7 @@ static void nv_drm_update_drm_driver_features(void)
+@@ -1445,7 +1450,7 @@ static void nv_drm_update_drm_driver_features(void)
  /*
   * Helper function for allocate/register DRM device for given NVIDIA GPU ID.
   */
@@ -246,7 +246,7 @@ index 0871f1a2cc6..bcf66b512c8 100644
  {
      struct nv_drm_device *nv_dev = NULL;
      struct drm_device *dev = NULL;
-@@ -986,7 +991,11 @@ static void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
+@@ -1484,7 +1489,11 @@ static void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
      nv_dev->dev = dev;
  
  #if defined(NV_DRM_DEVICE_HAS_PDEV)
@@ -258,7 +258,7 @@ index 0871f1a2cc6..bcf66b512c8 100644
          dev->pdev = to_pci_dev(device);
      }
  #endif
-@@ -1000,8 +1009,8 @@ static void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
+@@ -1498,8 +1507,8 @@ static void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
  
      /* Add NVIDIA-DRM device into list */
  
@@ -269,7 +269,7 @@ index 0871f1a2cc6..bcf66b512c8 100644
  
      return; /* Success */
  
-@@ -1017,6 +1026,7 @@ failed_drm_alloc:
+@@ -1515,6 +1524,7 @@ failed_drm_alloc:
  /*
   * Enumerate NVIDIA GPUs and allocate/register DRM device for each of them.
   */
@@ -277,7 +277,7 @@ index 0871f1a2cc6..bcf66b512c8 100644
  int nv_drm_probe_devices(void)
  {
      nv_gpu_info_t *gpu_info = NULL;
-@@ -1059,21 +1069,25 @@ done:
+@@ -1557,21 +1567,25 @@ done:
  
      return ret;
  }
@@ -640,7 +640,7 @@ index fccde05d010..c40ecdcef5e 100644
      return ret;
  }
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-gem-nvkms-memory.c b/nvidia/src/nvidia-drm/nvidia-drm-gem-nvkms-memory.c
-index 842238d186e..72a4d9817db 100644
+index 617ddd5fc22..2964b2a88aa 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-gem-nvkms-memory.c
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-gem-nvkms-memory.c
 @@ -38,6 +38,7 @@
@@ -651,7 +651,7 @@ index 842238d186e..72a4d9817db 100644
  #include "nv-mm.h"
  
  static void __nv_drm_gem_nvkms_memory_free(struct nv_drm_gem_object *nv_gem)
-@@ -93,7 +94,18 @@ static vm_fault_t __nv_drm_gem_nvkms_handle_vma_fault(
+@@ -93,12 +94,24 @@ static vm_fault_t __nv_drm_gem_nvkms_handle_vma_fault(
      if (nv_nvkms_memory->pages_count == 0) {
          pfn = (unsigned long)(uintptr_t)nv_nvkms_memory->pPhysicalAddress;
          pfn >>= PAGE_SHIFT;
@@ -668,9 +668,7 @@ index 842238d186e..72a4d9817db 100644
          pfn += page_offset;
 +#endif
      } else {
- #if NVCFG(GLOBAL_FEATURE_SECURITY_ROLLOUT_4_2022)
          BUG_ON(page_offset >= nv_nvkms_memory->pages_count);
-@@ -103,6 +115,7 @@ static vm_fault_t __nv_drm_gem_nvkms_handle_vma_fault(
          pfn = page_to_pfn(nv_nvkms_memory->pages[page_offset]);
      }
  
@@ -678,7 +676,7 @@ index 842238d186e..72a4d9817db 100644
  #if defined(NV_VMF_INSERT_PFN_PRESENT)
      ret = vmf_insert_pfn(vma, address, pfn);
  #else
-@@ -125,7 +138,57 @@ static vm_fault_t __nv_drm_gem_nvkms_handle_vma_fault(
+@@ -121,7 +134,57 @@ static vm_fault_t __nv_drm_gem_nvkms_handle_vma_fault(
              break;
      }
  #endif /* defined(NV_VMF_INSERT_PFN_PRESENT) */
@@ -736,7 +734,7 @@ index 842238d186e..72a4d9817db 100644
  #endif /* defined(NV_DRM_ATOMIC_MODESET_AVAILABLE) */
      return VM_FAULT_SIGBUS;
  }
-@@ -304,7 +367,11 @@ int nv_drm_dumb_create(
+@@ -314,7 +377,11 @@ int nv_drm_dumb_create(
          ret = -ENOMEM;
          NV_DRM_DEV_LOG_ERR(
              nv_dev,
@@ -749,7 +747,7 @@ index 842238d186e..72a4d9817db 100644
              args->size);
          goto nvkms_alloc_memory_failed;
      }
-@@ -324,6 +391,27 @@ int nv_drm_dumb_create(
+@@ -334,6 +401,27 @@ int nv_drm_dumb_create(
          goto fail;
      }
  
@@ -778,7 +776,7 @@ index 842238d186e..72a4d9817db 100644
                                                     &nv_nvkms_memory->base,
                                                     &args->handle);
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-gem-user-memory.c b/nvidia/src/nvidia-drm/nvidia-drm-gem-user-memory.c
-index e9bc57f9fff..e37e622c8bc 100644
+index 2a15b16e71f..594e16ba53a 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-gem-user-memory.c
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-gem-user-memory.c
 @@ -35,6 +35,7 @@
@@ -789,10 +787,10 @@ index e9bc57f9fff..e37e622c8bc 100644
  
  static inline
  void __nv_drm_gem_user_memory_free(struct nv_drm_gem_object *nv_gem)
-@@ -117,6 +118,67 @@ static vm_fault_t __nv_drm_gem_user_memory_handle_vma_fault(
- #else
-     BUG_ON(page_offset > nv_user_memory->pages_count);
- #endif
+@@ -113,6 +114,67 @@ static vm_fault_t __nv_drm_gem_user_memory_handle_vma_fault(
+     page_offset = vmf->pgoff - drm_vma_node_start(&gem->vma_node);
+ 
+     BUG_ON(page_offset >= nv_user_memory->pages_count);
 +
 +#ifndef __linux__
 +    /*
@@ -857,7 +855,7 @@ index e9bc57f9fff..e37e622c8bc 100644
      ret = vm_insert_page(vma, address, nv_user_memory->pages[page_offset]);
      switch (ret) {
          case 0:
-@@ -135,6 +197,7 @@ static vm_fault_t __nv_drm_gem_user_memory_handle_vma_fault(
+@@ -131,6 +193,7 @@ static vm_fault_t __nv_drm_gem_user_memory_handle_vma_fault(
              ret = VM_FAULT_SIGBUS;
              break;
      }
@@ -865,7 +863,7 @@ index e9bc57f9fff..e37e622c8bc 100644
  
      return ret;
  }
-@@ -174,7 +237,11 @@ int nv_drm_gem_import_userspace_memory_ioctl(struct drm_device *dev,
+@@ -170,7 +233,11 @@ int nv_drm_gem_import_userspace_memory_ioctl(struct drm_device *dev,
      if ((params->size % PAGE_SIZE) != 0) {
          NV_DRM_DEV_LOG_ERR(
              nv_dev,
@@ -877,7 +875,7 @@ index e9bc57f9fff..e37e622c8bc 100644
              "size to create a gem object",
              params->address);
          return -EINVAL;
-@@ -187,7 +254,11 @@ int nv_drm_gem_import_userspace_memory_ioctl(struct drm_device *dev,
+@@ -183,7 +250,11 @@ int nv_drm_gem_import_userspace_memory_ioctl(struct drm_device *dev,
      if (ret != 0) {
          NV_DRM_DEV_LOG_ERR(
              nv_dev,
@@ -890,10 +888,10 @@ index e9bc57f9fff..e37e622c8bc 100644
          return ret;
      }
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-helper.c b/nvidia/src/nvidia-drm/nvidia-drm-helper.c
-index 2a0bfa49048..8e9028af58d 100644
+index dd6f89a7cd7..4fead376b1e 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-helper.c
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-helper.c
-@@ -198,7 +198,11 @@ free:
+@@ -200,7 +200,11 @@ free:
      drm_atomic_state_put(state);
  #else
      if (ret != 0) {
@@ -993,10 +991,10 @@ index 9f1c31ce3f7..cbd47ab11a3 100644
  void nv_drm_exit(void);
  
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-ioctl.h b/nvidia/src/nvidia-drm/nvidia-drm-ioctl.h
-index 850bd0c39dc..93099dead6d 100644
+index 1d0e738591b..828b2549e67 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-ioctl.h
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-ioctl.h
-@@ -63,7 +63,7 @@
+@@ -67,7 +67,7 @@
   *
   * 'warning: suggest parentheses around arithmetic in operand of |'
   */
@@ -1019,5 +1017,5 @@ index d1f88e9d829..d1aa5e7c59d 100644
  #include "nvkms-ioctl.h"
  #include "nvidia-modeset-os-interface.h"
 -- 
-2.35.1
+2.38.1
 

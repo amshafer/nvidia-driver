@@ -1,0 +1,109 @@
+From b3fcab2642b9035cdb0b7f013664face55a190a9 Mon Sep 17 00:00:00 2001
+From: Austin Shafer <ashafer@nvidia.com>
+Date: Fri, 13 Jan 2023 21:58:40 -0500
+Subject: [PATCH] FreeBSD: implement nv_get_phys_pages/nv_get_num_phys_pages
+
+These are used by PRIME render offloading, when the i915 driver
+tries to import a sg table from Nvidia:
+https://github.com/amshafer/nvidia-driver/issues/7
+---
+ .../arch/nvalloc/unix/FreeBSD/nv-freebsd.h    |  1 +
+ .../arch/nvalloc/unix/FreeBSD/nvidia_subr.c   | 41 ++++++++++++++++++-
+ 2 files changed, 40 insertions(+), 2 deletions(-)
+
+diff --git a/nvidia/src/nvidia/nv-freebsd.h b/nvidia/src/nvidia/nv-freebsd.h
+index 4d5daeab4fc..08098cca296 100644
+--- a/nvidia/src/nvidia/nv-freebsd.h
++++ b/nvidia/src/nvidia/nv-freebsd.h
+@@ -141,6 +141,7 @@ struct nvidia_pte {
+ typedef
+ struct nvidia_alloc {
+     vm_memattr_t attr;
++    uint32_t num_pages;
+     uint32_t size;
+     int alloc_type_contiguous;
+     struct nvidia_pte *pte_array;
+diff --git a/nvidia/src/nvidia/nvidia_subr.c b/nvidia/src/nvidia/nvidia_subr.c
+index 161e289471d..8933f2bed35 100644
+--- a/nvidia/src/nvidia/nvidia_subr.c
++++ b/nvidia/src/nvidia/nvidia_subr.c
+@@ -1173,6 +1173,7 @@ static NvS32 nv_alloc_contig_pages(
+     if (!at)
+         return ENOMEM;
+ 
++    at->num_pages = count;
+     at->size = size;
+     at->alloc_type_contiguous = 1;
+     at->attr = attr;
+@@ -1304,6 +1305,7 @@ static NvS32 nv_alloc_system_pages(
+     if (!at)
+         return ENOMEM;
+ 
++    at->num_pages = count;
+     at->size = size;
+     at->alloc_type_contiguous = 0;
+     at->attr = attr;
+@@ -1860,6 +1862,7 @@ NV_STATUS NV_API_CALL nv_register_user_pages(
+     if (!at)
+         return NV_ERR_NO_MEMORY;
+ 
++    at->num_pages = page_count;
+     at->pte_array = malloc(sizeof(nvidia_pte_t) * page_count, M_NVIDIA,
+             (M_WAITOK | M_ZERO));
+     if (!at->pte_array) {
+@@ -2006,16 +2009,50 @@ NV_STATUS NV_API_CALL nv_get_num_phys_pages(
+     NvU32   *pNumPages
+ )
+ {
+-    return NV_ERR_NOT_SUPPORTED;
++    nvidia_alloc_t *at = pAllocPrivate;
++
++    if (!pNumPages) {
++        return NV_ERR_INVALID_ARGUMENT;
++    }
++
++    *pNumPages = at->num_pages;
++
++    return NV_OK;
+ }
+ 
++/*
++ * This function is going to populate pPages with an array
++ * of vm_page_t pointers. The actual usage of this function
++ * is in nvidia-drm, which treats the return as Linux's "struct
++ * page" pointers. This is actually okay, as when running nvidia-drm
++ * with the linuxkpi compat layer "struct page" will be defined
++ * as a "struct vm_page".
++ * (see sys/compat/linuxkpi/common/include/linux/page.h in FreeBSD)
++ */
+ NV_STATUS NV_API_CALL nv_get_phys_pages(
+     void    *pAllocPrivate,
+     void    *pPages,
+     NvU32   *pNumPages
+ )
+ {
+-    return NV_ERR_NOT_SUPPORTED;
++    nvidia_alloc_t *at = pAllocPrivate;
++    vm_page_t *pages = (vm_page_t *)pPages;
++    NvU32 page_count;
++    int i;
++
++    if (!pNumPages || !pPages) {
++        return NV_ERR_INVALID_ARGUMENT;
++    }
++
++    page_count = NV_MIN(*pNumPages, at->num_pages);
++
++    for (i = 0; i < page_count; i++) {
++        pages[i] = PHYS_TO_VM_PAGE(at->pte_array[i].physical_address);
++    }
++
++    *pNumPages = page_count;
++
++    return NV_OK;
+ }
+ 
+ NV_STATUS NV_API_CALL nv_get_ibmnpu_genreg_info(
+-- 
+2.38.1
+
