@@ -44,12 +44,17 @@ Ensure that both of these are populated with their corresponding projects
 via the following:
 ```
 git clone https://github.com/freebsd/freebsd-src/ 
-git clone https://github.com/freebsd/drm-kmod 
+# see below for details on which branch to use
+git clone https://github.com/freebsd/drm-kmod --branch <branch_name>
 ```
 
-In the case of `drm-kmod` you may wish to specify a branch. This is especially
-necessary if you are trying to mix this driver with `drm-kmod` build from ports
-(which I don't recommend just yet, build drm-kmod yourself).
+In the case of `drm-kmod` you may wish to specify a branch. The branch chosen
+must match what supports your FreeBSD version and your installation of drm-kmod
+(if you installed it through pkg).
+
+Ex:
+* For `14.0-CURRENT` use `master`
+* For `13.1-*` use `5.10-lts`
 
 ## Installing
 
