@@ -141,6 +141,7 @@ struct nvidia_pte {
 typedef
 struct nvidia_alloc {
     vm_memattr_t attr;
+    uint32_t num_pages;
     uint32_t size;
     int alloc_type_contiguous;
     struct nvidia_pte *pte_array;
