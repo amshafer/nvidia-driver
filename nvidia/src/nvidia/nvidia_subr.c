@@ -1173,6 +1173,7 @@ static NvS32 nv_alloc_contig_pages(
     if (!at)
         return ENOMEM;
 
+    at->num_pages = count;
     at->size = size;
     at->alloc_type_contiguous = 1;
     at->attr = attr;
@@ -1304,6 +1305,7 @@ static NvS32 nv_alloc_system_pages(
     if (!at)
         return ENOMEM;
 
+    at->num_pages = count;
     at->size = size;
     at->alloc_type_contiguous = 0;
     at->attr = attr;
@@ -1860,6 +1862,7 @@ NV_STATUS NV_API_CALL nv_register_user_pages(
     if (!at)
         return NV_ERR_NO_MEMORY;
 
+    at->num_pages = page_count;
     at->pte_array = malloc(sizeof(nvidia_pte_t) * page_count, M_NVIDIA,
             (M_WAITOK | M_ZERO));
     if (!at->pte_array) {
@@ -1994,16 +1997,50 @@ NV_STATUS NV_API_CALL nv_get_num_phys_pages(
     NvU32   *pNumPages
 )
 {
-    return NV_ERR_NOT_SUPPORTED;
+    nvidia_alloc_t *at = pAllocPrivate;
+
+    if (!pNumPages) {
+        return NV_ERR_INVALID_ARGUMENT;
+    }
+
+    *pNumPages = at->num_pages;
+
+    return NV_OK;
 }
 
+/*
+ * This function is going to populate pPages with an array
+ * of vm_page_t pointers. The actual usage of this function
+ * is in nvidia-drm, which treats the return as Linux's "struct
+ * page" pointers. This is actually okay, as when running nvidia-drm
+ * with the linuxkpi compat layer "struct page" will be defined
+ * as a "struct vm_page".
+ * (see sys/compat/linuxkpi/common/include/linux/page.h in FreeBSD)
+ */
 NV_STATUS NV_API_CALL nv_get_phys_pages(
     void    *pAllocPrivate,
     void    *pPages,
     NvU32   *pNumPages
 )
 {
-    return NV_ERR_NOT_SUPPORTED;
+    nvidia_alloc_t *at = pAllocPrivate;
+    vm_page_t *pages = (vm_page_t *)pPages;
+    NvU32 page_count;
+    int i;
+
+    if (!pNumPages || !pPages) {
+        return NV_ERR_INVALID_ARGUMENT;
+    }
+
+    page_count = NV_MIN(*pNumPages, at->num_pages);
+
+    for (i = 0; i < page_count; i++) {
+        pages[i] = PHYS_TO_VM_PAGE(at->pte_array[i].physical_address);
+    }
+
+    *pNumPages = page_count;
+
+    return NV_OK;
 }
 
 NV_STATUS NV_API_CALL nv_get_ibmnpu_genreg_info(
