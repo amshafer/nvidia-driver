@@ -1,4 +1,4 @@
-From f964eef8f8137e724ecc1d8511812055c05d0fd2 Mon Sep 17 00:00:00 2001
+From 3b4d886b65442011bd22823c707eb5163ffdf4f9 Mon Sep 17 00:00:00 2001
 From: Austin Shafer <ashafer@nvidia.com>
 Date: Sun, 13 Feb 2022 20:27:07 -0500
 Subject: [PATCH 3/3] nvidia-drm: Add support for FreeBSD
