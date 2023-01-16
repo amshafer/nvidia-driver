@@ -373,6 +373,7 @@ struct nvkms_timer_t {
     NvBool cancel;
     NvBool complete;
     NvBool isRefPtr;
+    NvBool needsNvkmsLock;
     NvBool callout_created;
     nvkms_timer_proc_t *proc;
     void *dataPtr;
@@ -411,7 +412,14 @@ static void nvkms_taskqueue_callback(void *arg, int pending)
         callout_drain(&timer->callout);
     }
 
-    sx_xlock(&nvkms_lock);
+    /*
+     * Only lock if this timer requests it. DRM's callback nv_drm_event_callback
+     * will not need this, since it may reenter nvkms through the kapi and lock
+     * nvkms_lock then.
+     */
+    if (timer->needsNvkmsLock) {
+        sx_xlock(&nvkms_lock);
+    }
 
     if (timer->isRefPtr) {
         // If the object this timer refers to was destroyed, treat the timer as
@@ -429,11 +437,13 @@ static void nvkms_taskqueue_callback(void *arg, int pending)
         timer->complete = NV_TRUE;
     }
 
+    if (timer->needsNvkmsLock) {
+        sx_xunlock(&nvkms_lock);
+    }
+
     if (timer->cancel || timer->isRefPtr) {
         nvkms_free(timer, sizeof(*timer));
     }
-
-    sx_xunlock(&nvkms_lock);
 }
 
 static void nvkms_callout_callback(void *arg)
@@ -446,11 +456,13 @@ static void nvkms_callout_callback(void *arg)
 
 static void
 nvkms_init_timer(struct nvkms_timer_t *timer, nvkms_timer_proc_t *proc,
-                 void *dataPtr, NvU32 dataU32, NvBool isRefPtr, NvU64 usec)
+                 void *dataPtr, NvU32 dataU32, NvBool isRefPtr, NvU64 usec,
+                 NvBool needsNvkmsLock)
 {
     timer->cancel = NV_FALSE;
     timer->complete = NV_FALSE;
     timer->isRefPtr = isRefPtr;
+    timer->needsNvkmsLock = needsNvkmsLock;
 
     timer->proc = proc;
     timer->dataPtr = dataPtr;
@@ -484,17 +496,25 @@ nvkms_init_timer(struct nvkms_timer_t *timer, nvkms_timer_proc_t *proc,
     mtx_unlock_spin(&nvkms_timers.lock);
 }
 
+static nvkms_timer_handle_t*
+nvkms_alloc_timer_locked(nvkms_timer_proc_t *proc,
+                         void *dataPtr, NvU32 dataU32,
+                         NvU64 usec, NvBool needsNvkmsLock)
+{
+    // nvkms_alloc_timer cannot be called from an interrupt context.
+    struct nvkms_timer_t *timer = nvkms_alloc(sizeof(*timer), NV_TRUE);
+    if (timer) {
+        nvkms_init_timer(timer, proc, dataPtr, dataU32, NV_FALSE, usec, needsNvkmsLock);
+    }
+    return timer;
+}
+
 nvkms_timer_handle_t*
 nvkms_alloc_timer(nvkms_timer_proc_t *proc,
                   void *dataPtr, NvU32 dataU32,
                   NvU64 usec)
 {
-    // nvkms_alloc_timer cannot be called from an interrupt context.
-    struct nvkms_timer_t *timer = nvkms_alloc(sizeof(*timer), NV_TRUE);
-    if (timer) {
-        nvkms_init_timer(timer, proc, dataPtr, dataU32, NV_FALSE, usec);
-    }
-    return timer;
+    return nvkms_alloc_timer_locked(proc, dataPtr, dataU32, usec, NV_TRUE);
 }
 
 NvBool
@@ -511,7 +531,7 @@ nvkms_alloc_timer_with_ref_ptr(nvkms_timer_proc_t *proc,
         // Reference the ref_ptr to make sure that it doesn't get freed before
         // the timer fires.
         nvkms_inc_ref(ref_ptr);
-        nvkms_init_timer(timer, proc, ref_ptr, dataU32, NV_TRUE, usec);
+        nvkms_init_timer(timer, proc, ref_ptr, dataU32, NV_TRUE, usec, NV_TRUE);
     }
 
     return timer != NULL;
@@ -575,10 +595,11 @@ nvkms_event_queue_changed(nvkms_per_open_handle_t *pOpenKernel,
             break;
         case NVKMS_CLIENT_KERNEL_SPACE:
             if (!popen->kernel.task) {
-                popen->kernel.task = nvkms_alloc_timer(nvkms_kapi_task_callback,
-                                                       popen,
-                                                       0, /* dataU32 */
-                                                       0 /* callout delay */);
+                popen->kernel.task = nvkms_alloc_timer_locked(nvkms_kapi_task_callback,
+                                                              popen,
+                                                              0, /* dataU32 */
+                                                              0, /* callout delay */
+                                                              NV_FALSE);
             }
             break;
     }
@@ -833,10 +854,11 @@ static struct nvkms_per_open *nvkms_open_common(enum NvKmsClientType type,
         case NVKMS_CLIENT_KERNEL_SPACE:
             /* enqueue our new task */
             popen->kernel.device = device;
-            popen->kernel.task = nvkms_alloc_timer(nvkms_kapi_task_callback,
-                                                   popen,
-                                                   0, /* dataU32 */
-                                                   0 /* callout delay */);
+            popen->kernel.task = nvkms_alloc_timer_locked(nvkms_kapi_task_callback,
+                                                          popen,
+                                                          0, /* dataU32 */
+                                                          0, /* callout delay */
+                                                          NV_FALSE);
             break;
     }
 
