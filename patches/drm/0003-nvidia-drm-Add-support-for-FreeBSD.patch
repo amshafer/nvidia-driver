@@ -1,4 +1,4 @@
-From 3b4d886b65442011bd22823c707eb5163ffdf4f9 Mon Sep 17 00:00:00 2001
+From daa5ed6bf5e4a981832e8eb779d6b5614c6ec6b9 Mon Sep 17 00:00:00 2001
 From: Austin Shafer <ashafer@nvidia.com>
 Date: Sun, 13 Feb 2022 20:27:07 -0500
 Subject: [PATCH 3/3] nvidia-drm: Add support for FreeBSD
@@ -42,7 +42,7 @@ index 3b5d0952003..0a9331c902e 100644
  #ifdef NV_SUPPORT_LINUX_COMPAT /* (COMPAT_LINUX || COMPAT_LINUX32) */
  MODULE_DEPEND(nvidia, linux, 1, 1, 1);
 diff --git a/nvidia/src/common/inc/nv-mm.h b/nvidia/src/common/inc/nv-mm.h
-index 44b2bdc3c0d..dd3461e01a7 100644
+index 9df900c1db9..35e90052bd6 100644
 --- a/nvidia/src/common/inc/nv-mm.h
 +++ b/nvidia/src/common/inc/nv-mm.h
 @@ -23,7 +23,17 @@
@@ -179,10 +179,10 @@ index bed8d812656..bfc5da74a43 100644
 +
  #endif /* defined(__NVIDIA_DRM_CONFTEST_H__) */
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-crtc.c b/nvidia/src/nvidia-drm/nvidia-drm-crtc.c
-index e9fc3fd8189..53d9fcfaddb 100644
+index 333387a155c..00b13458d52 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-crtc.c
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-crtc.c
-@@ -584,7 +584,7 @@ static int nv_drm_plane_atomic_set_property(
+@@ -601,7 +601,7 @@ static int nv_drm_plane_atomic_set_property(
  {
      struct nv_drm_device *nv_dev = to_nv_device(plane->dev);
      struct nv_drm_plane_state *nv_drm_plane_state =
@@ -191,7 +191,7 @@ index e9fc3fd8189..53d9fcfaddb 100644
  
      if (property == nv_dev->nv_out_fence_property) {
  #if defined(NV_LINUX_NVHOST_H_PRESENT) && defined(CONFIG_TEGRA_GRHOST)
-@@ -1111,7 +1111,11 @@ nv_drm_plane_create(struct drm_device *dev,
+@@ -1128,7 +1128,11 @@ nv_drm_plane_create(struct drm_device *dev,
          formats, formats_count,
  #if defined(NV_DRM_UNIVERSAL_PLANE_INIT_HAS_FORMAT_MODIFIERS_ARG)
          (plane_type == DRM_PLANE_TYPE_CURSOR) ?
@@ -310,10 +310,10 @@ index e48378faa57..f6407a1e856 100644
  }
  
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-fb.c b/nvidia/src/nvidia-drm/nvidia-drm-fb.c
-index d119e7c92dd..22715e4ae55 100644
+index 2747123ff5f..af8d31ad5e4 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-fb.c
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-fb.c
-@@ -218,7 +218,11 @@ struct drm_framebuffer *nv_drm_internal_framebuffer_create(
+@@ -240,7 +240,11 @@ struct drm_framebuffer *nv_drm_internal_framebuffer_create(
          if (nv_dev->modifiers[i] == DRM_FORMAT_MOD_INVALID) {
              NV_DRM_DEV_DEBUG_DRIVER(
                  nv_dev,
@@ -326,7 +326,7 @@ index d119e7c92dd..22715e4ae55 100644
              return ERR_PTR(-EINVAL);
          }
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-fence.c b/nvidia/src/nvidia-drm/nvidia-drm-fence.c
-index 9606d3a9aec..ff3a21b99d3 100644
+index 71d7275a2a3..5127eefbebc 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-fence.c
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-fence.c
 @@ -151,7 +151,11 @@ __nv_drm_prime_fence_signal(struct nv_drm_prime_fence *nv_fence)
@@ -640,7 +640,7 @@ index fccde05d010..c40ecdcef5e 100644
      return ret;
  }
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-gem-nvkms-memory.c b/nvidia/src/nvidia-drm/nvidia-drm-gem-nvkms-memory.c
-index 617ddd5fc22..2964b2a88aa 100644
+index 3db75c8928a..ab8a3c6c51c 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-gem-nvkms-memory.c
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-gem-nvkms-memory.c
 @@ -38,6 +38,7 @@
@@ -776,7 +776,7 @@ index 617ddd5fc22..2964b2a88aa 100644
                                                     &nv_nvkms_memory->base,
                                                     &args->handle);
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-gem-user-memory.c b/nvidia/src/nvidia-drm/nvidia-drm-gem-user-memory.c
-index 2a15b16e71f..594e16ba53a 100644
+index 93824098794..cef22c825e6 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-gem-user-memory.c
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-gem-user-memory.c
 @@ -35,6 +35,7 @@
@@ -1004,7 +1004,7 @@ index 1d0e738591b..828b2549e67 100644
      DRM_IO(DRM_COMMAND_BASE + DRM_NVIDIA_FENCE_SUPPORTED)
  #define DRM_IOCTL_NVIDIA_DMABUF_SUPPORTED                        \
 diff --git a/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c b/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c
-index d1f88e9d829..d1aa5e7c59d 100644
+index 4c3dee10328..4c1a1c60669 100644
 --- a/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c
 +++ b/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c
 @@ -28,6 +28,8 @@
@@ -1017,5 +1017,5 @@ index d1f88e9d829..d1aa5e7c59d 100644
  #include "nvkms-ioctl.h"
  #include "nvidia-modeset-os-interface.h"
 -- 
-2.38.1
+2.39.2
 
