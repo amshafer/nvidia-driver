@@ -347,7 +347,6 @@ MODULE_VERSION(nvidia, 1);
 
 MODULE_DEPEND(nvidia, mem, 1, 1, 1);
 MODULE_DEPEND(nvidia, io, 1, 1, 1);
-MODULE_DEPEND(nvidia, drmn, 2, 2, 2);
 
 #ifdef NV_SUPPORT_LINUX_COMPAT /* (COMPAT_LINUX || COMPAT_LINUX32) */
 MODULE_DEPEND(nvidia, linux, 1, 1, 1);
