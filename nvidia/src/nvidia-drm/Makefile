@@ -205,6 +205,11 @@ NV_CONFTEST_TYPE_COMPILE_TESTS += dma_resv_add_fence
 NV_CONFTEST_TYPE_COMPILE_TESTS += dma_resv_reserve_fences
 NV_CONFTEST_TYPE_COMPILE_TESTS += reservation_object_reserve_shared_has_num_fences_arg
 NV_CONFTEST_TYPE_COMPILE_TESTS += drm_connector_has_override_edid
+NV_CONFTEST_TYPE_COMPILE_TESTS += drm_master_has_leases
+NV_CONFTEST_TYPE_COMPILE_TESTS += drm_file_get_master
+NV_CONFTEST_TYPE_COMPILE_TESTS += drm_modeset_lock_all_end
+NV_CONFTEST_TYPE_COMPILE_TESTS += drm_connector_lookup
+NV_CONFTEST_TYPE_COMPILE_TESTS += drm_connector_put
 
 conftest/type.h: ${PWD}/conftest.sh ${DRMKMODDIR}
 	mkdir -p conftest
