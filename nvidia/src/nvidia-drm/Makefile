@@ -118,6 +118,12 @@ CFLAGS += -Wno-cast-qual -Wno-incompatible-pointer-types-discards-qualifiers
 # to include conftest/headers.h
 NV_CONFTEST_CFLAGS+=-I. -D_KERNEL -DKLD_MODULE -nostdinc -I/usr/src/sys -I/usr/src/sys/contrib/ck/include 
 
+# Mark the linux version we support.
+# This solves issues with things like ww_mutex_trylock, we will have
+# to bump this manually over time unfortunately
+NV_CONFTEST_CFLAGS += -DLINUXKPI_VERSION=51600
+CFLAGS += -DLINUXKPI_VERSION=51600
+
 conftest/headers.h: ${PWD}/conftest.sh ${DRMKMODDIR}
 	mkdir -p conftest
 	${PWD}/conftest.sh ${CC} x86_64 ${DRMKMODDIR} this_arg_not_used_on_bsd test_kernel_headers '${NV_CONFTEST_CFLAGS}' > conftest/headers.h
