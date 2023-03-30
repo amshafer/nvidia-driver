@@ -121,8 +121,9 @@ NV_CONFTEST_CFLAGS+=-I. -D_KERNEL -DKLD_MODULE -nostdinc -I/usr/src/sys -I/usr/s
 # Mark the linux version we support.
 # This solves issues with things like ww_mutex_trylock, we will have
 # to bump this manually over time unfortunately
-NV_CONFTEST_CFLAGS += -DLINUXKPI_VERSION=51600
-CFLAGS += -DLINUXKPI_VERSION=51600
+.include "${DRMKMODDIR}/linuxkpi_version.mk"
+
+NV_CONFTEST_CFLAGS += -DLINUXKPI_VERSION=${LINUXKPI_VERSION_NUMBER}
 
 conftest/headers.h: ${PWD}/conftest.sh ${DRMKMODDIR}
 	mkdir -p conftest
