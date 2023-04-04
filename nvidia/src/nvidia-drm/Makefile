@@ -79,7 +79,7 @@ CFLAGS += -Wno-error=pointer-arith
 # make sure /usr/include is before all the other includes
 #CFLAGS = "-I/usr/include/ $CFLAGS"
 
-CFLAGS += -DNV_VERSION_STRING=\"530.00\"
+CFLAGS += -DNV_VERSION_STRING=\"530.41.03\"
 
 include ../common/optional-cflags.mk
 
