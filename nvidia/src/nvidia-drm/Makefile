@@ -95,6 +95,7 @@ NV_CONFTEST_CFLAGS = \
         -I${DRMKMODDIR}/linuxkpi/gplv2/include/ \
         -I${SYSDIR}/compat/linuxkpi/common/include/ \
         -I${DRMKMODDIR}/linuxkpi/dummy/include/ \
+        -I${BSDSRCTOP}/sys/compat/linuxkpi/dummy/include/ \
         -I${DRMKMODDIR}/include/ \
         -I${DRMKMODDIR}/include/uapi/ \
         -I${DRMKMODDIR}/drivers/gpu/ \
