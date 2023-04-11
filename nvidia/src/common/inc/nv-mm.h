@@ -31,6 +31,12 @@
 #include <sys/lock.h>
 #include <sys/sx.h>
 
+#ifdef __linux__
+typedef vm_flags_t nv_vm_flags_t;
+#else
+typedef unsigned long nv_vm_flags_t;
+#endif
+
 #define rwsem_is_locked(sem) (((sem)->sx.sx_lock & (SX_LOCK_SHARED)) \
                               || ((sem)->sx.sx_lock & ~(SX_LOCK_FLAGMASK & ~SX_LOCK_SHARED)))
 #endif
@@ -271,7 +277,7 @@ static inline struct rw_semaphore *nv_mmap_get_lock(struct mm_struct *mm)
 #endif
 }
 
-static inline void nv_vm_flags_set(struct vm_area_struct *vma, vm_flags_t flags)
+static inline void nv_vm_flags_set(struct vm_area_struct *vma, nv_vm_flags_t flags)
 {
 #if defined(NV_VM_AREA_STRUCT_HAS_CONST_VM_FLAGS)
     vm_flags_set(vma, flags);
@@ -280,7 +286,7 @@ static inline void nv_vm_flags_set(struct vm_area_struct *vma, vm_flags_t flags)
 #endif
 }
 
-static inline void nv_vm_flags_clear(struct vm_area_struct *vma, vm_flags_t flags)
+static inline void nv_vm_flags_clear(struct vm_area_struct *vma, nv_vm_flags_t flags)
 {
 #if defined(NV_VM_AREA_STRUCT_HAS_CONST_VM_FLAGS)
     vm_flags_clear(vma, flags);
