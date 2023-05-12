@@ -1,4 +1,4 @@
-From 37d724129190b1e60a9040fc70c07f757c83220e Mon Sep 17 00:00:00 2001
+From 7a0f44e8f7c4b3e07ced9375c49497588d0b60c0 Mon Sep 17 00:00:00 2001
 From: Austin Shafer <ashafer@nvidia.com>
 Date: Tue, 18 Oct 2022 12:57:10 -0400
 Subject: [PATCH 1/3] nvidia-drm: Add build logic for FreeBSD
@@ -11,8 +11,8 @@ This also includes WARs in the conftest script to handle FreeBSD
 ---
  .../resman/arch/nvalloc/unix/FreeBSD/Makefile |   4 +
  .../arch/nvalloc/unix/Linux/conftest.sh       |  64 +++--
- nvidia/src/nvidia-drm/Makefile      | 235 ++++++++++++++++++
- 3 files changed, 267 insertions(+), 36 deletions(-)
+ nvidia/src/nvidia-drm/Makefile      | 238 ++++++++++++++++++
+ 3 files changed, 270 insertions(+), 36 deletions(-)
  create mode 100644 nvidia/src/nvidia-drm/Makefile
 
 diff --git a/nvidia/src/Makefile b/nvidia/src/Makefile
@@ -31,7 +31,7 @@ index 97c031cfdb2..95b12a350b1 100644
  
  .include <bsd.subdir.mk>
 diff --git a/nvidia/src/nvidia-drm/conftest.sh b/nvidia/src/nvidia-drm/conftest.sh
-index 591191b63a2..69658b0fa54 100755
+index 212d37b5c44..0b5a368870c 100755
 --- a/nvidia/src/nvidia-drm/conftest.sh
 +++ b/nvidia/src/nvidia-drm/conftest.sh
 @@ -14,6 +14,12 @@ OUTPUT=$4
@@ -65,7 +65,7 @@ index 591191b63a2..69658b0fa54 100755
  
  test_configuration_option() {
      #
-@@ -1190,7 +1200,7 @@ compile_test() {
+@@ -1348,7 +1358,7 @@ compile_test() {
              #include <drm/drm_drv.h>
              #endif
  
@@ -74,7 +74,7 @@ index 591191b63a2..69658b0fa54 100755
              #error DRM not enabled
              #endif
  
-@@ -1657,7 +1667,7 @@ compile_test() {
+@@ -1815,7 +1825,7 @@ compile_test() {
              #include <drm/drmP.h>
              #endif
              #include <drm/drm_atomic.h>
@@ -83,7 +83,7 @@ index 591191b63a2..69658b0fa54 100755
              #error DRM not enabled
              #endif
              void conftest_drm_atomic_modeset_available(void) {
-@@ -2202,11 +2212,8 @@ compile_test() {
+@@ -2360,11 +2370,8 @@ compile_test() {
              #
              echo "$CONFTEST_PREAMBLE
              #include <drm/drm_crtc_helper.h>
@@ -97,7 +97,7 @@ index 591191b63a2..69658b0fa54 100755
              }" > conftest$$.c;
  
              $CC $CFLAGS -c conftest$$.c > /dev/null 2>&1
-@@ -2229,10 +2236,8 @@ compile_test() {
+@@ -2387,10 +2394,8 @@ compile_test() {
                  #
                  echo "$CONFTEST_PREAMBLE
                  #include <drm/drm_crtc_helper.h>
@@ -110,7 +110,7 @@ index 591191b63a2..69658b0fa54 100755
                  }" > conftest$$.c;
  
                  $CC $CFLAGS -c conftest$$.c > /dev/null 2>&1
-@@ -2348,13 +2353,8 @@ compile_test() {
+@@ -2517,13 +2522,8 @@ compile_test() {
  
              echo "$CONFTEST_PREAMBLE
              #include <linux/mm.h>
@@ -126,7 +126,7 @@ index 591191b63a2..69658b0fa54 100755
              }" > conftest$$.c
  
              $CC $CFLAGS -c conftest$$.c > /dev/null 2>&1
-@@ -2373,12 +2373,8 @@ compile_test() {
+@@ -2543,12 +2543,8 @@ compile_test() {
  
              echo "$CONFTEST_PREAMBLE
              #include <linux/mm.h>
@@ -141,7 +141,7 @@ index 591191b63a2..69658b0fa54 100755
              }" > conftest$$.c
  
              $CC $CFLAGS -c conftest$$.c > /dev/null 2>&1
-@@ -2398,14 +2394,8 @@ compile_test() {
+@@ -2569,14 +2565,8 @@ compile_test() {
  
              echo "$CONFTEST_PREAMBLE
              #include <linux/mm.h>
@@ -158,7 +158,7 @@ index 591191b63a2..69658b0fa54 100755
              }" > conftest$$.c
  
              $CC $CFLAGS -c conftest$$.c > /dev/null 2>&1
-@@ -2538,7 +2528,7 @@ compile_test() {
+@@ -2743,7 +2733,7 @@ compile_test() {
                                         struct mm_struct *mm,
                                         unsigned long start,
                                         unsigned long nr_pages,
@@ -167,7 +167,7 @@ index 591191b63a2..69658b0fa54 100755
                                         struct page **pages,
                                         struct vm_area_struct **vmas) {
                  return 0;
-@@ -2564,7 +2554,7 @@ compile_test() {
+@@ -2770,7 +2760,7 @@ compile_test() {
                                         struct mm_struct *mm,
                                         unsigned long start,
                                         unsigned long nr_pages,
@@ -176,7 +176,7 @@ index 591191b63a2..69658b0fa54 100755
                                         struct page **pages,
                                         struct vm_area_struct **vmas,
                                         int *locked) {
-@@ -2589,7 +2579,7 @@ compile_test() {
+@@ -2795,7 +2785,7 @@ compile_test() {
              long get_user_pages_remote(struct mm_struct *mm,
                                         unsigned long start,
                                         unsigned long nr_pages,
@@ -185,7 +185,7 @@ index 591191b63a2..69658b0fa54 100755
                                         struct page **pages,
                                         struct vm_area_struct **vmas,
                                         int *locked) {
-@@ -3720,7 +3710,9 @@ compile_test() {
+@@ -4035,7 +4025,9 @@ compile_test() {
              #
              CODE="
              #include <linux/mm.h>
@@ -198,10 +198,10 @@ index 591191b63a2..69658b0fa54 100755
          ;;
 diff --git a/nvidia/src/nvidia-drm/Makefile b/nvidia/src/nvidia-drm/Makefile
 new file mode 100644
-index 00000000000..7bc3dc6f5ed
+index 00000000000..1a06624a9b6
 --- /dev/null
 +++ b/nvidia/src/nvidia-drm/Makefile
-@@ -0,0 +1,235 @@
+@@ -0,0 +1,238 @@
 +# Build NVIDIA DRM components using the linuxkpi
 +# inspired by the linuxkpi makefile
 +#
@@ -297,8 +297,9 @@ index 00000000000..7bc3dc6f5ed
 +NV_CONFTEST_CFLAGS = \
 +        -I${DRMKMODDIR}/linuxkpi/bsd/include \
 +        -I${DRMKMODDIR}/linuxkpi/gplv2/include/ \
-+        -I${SYSDIR}/compat/linuxkpi/common/include/ \
++        -I${BSDSRCTOP}/sys/compat/linuxkpi/common/include/ \
 +        -I${DRMKMODDIR}/linuxkpi/dummy/include/ \
++        -I${BSDSRCTOP}/sys/compat/linuxkpi/dummy/include/ \
 +        -I${DRMKMODDIR}/include/ \
 +        -I${DRMKMODDIR}/include/uapi/ \
 +        -I${DRMKMODDIR}/drivers/gpu/ \
@@ -325,8 +326,8 @@ index 00000000000..7bc3dc6f5ed
 +# Mark the linux version we support.
 +# This solves issues with things like ww_mutex_trylock, we will have
 +# to bump this manually over time unfortunately
-+NV_CONFTEST_CFLAGS += -DLINUXKPI_VERSION=51600
-+CFLAGS += -DLINUXKPI_VERSION=51600
++.include "${DRMKMODDIR}/linuxkpi_version.mk"
++NV_CONFTEST_CFLAGS += -DLINUXKPI_VERSION=${LINUXKPI_VERSION_NUMBER}
 +
 +conftest/headers.h: ${PWD}/conftest.sh ${DRMKMODDIR}
 +	mkdir -p conftest
@@ -364,6 +365,8 @@ index 00000000000..7bc3dc6f5ed
 +NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_vma_offset_exact_lookup_locked
 +NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_gem_object_put_unlocked
 +NV_CONFTEST_FUNCTION_COMPILE_TESTS += nvhost_dma_fence_unpack
++NV_CONFTEST_FUNCTION_COMPILE_TESTS += list_is_first
++NV_CONFTEST_FUNCTION_COMPILE_TESTS += timer_setup
 +
 +conftest/function.h: ${PWD}/conftest.sh ${DRMKMODDIR}
 +	mkdir -p conftest

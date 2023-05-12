@@ -1,17 +1,17 @@
-From bfda35d8cfdc758b38979e09426bfea2a65d3b32 Mon Sep 17 00:00:00 2001
+From 30ae769067ff7d1205ed62409351357ac7991392 Mon Sep 17 00:00:00 2001
 From: Austin Shafer <ashafer@nvidia.com>
 Date: Mon, 16 Jan 2023 16:27:01 -0500
-Subject: [PATCH] Don't lock nvkms_lock on kapi clients (drm)
+Subject: [PATCH 5/6] Don't lock nvkms_lock on kapi clients (drm)
 
 ---
  .../FreeBSD/nvidia-modeset-freebsd.c          | 58 +++++++++++++------
  1 file changed, 40 insertions(+), 18 deletions(-)
 
 diff --git a/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c b/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c
-index 4c1a1c60669..4644cea28f4 100644
+index 2363e57779c..7540646102f 100644
 --- a/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c
 +++ b/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c
-@@ -365,6 +365,7 @@ struct nvkms_timer_t {
+@@ -370,6 +370,7 @@ struct nvkms_timer_t {
      NvBool cancel;
      NvBool complete;
      NvBool isRefPtr;
@@ -19,7 +19,7 @@ index 4c1a1c60669..4644cea28f4 100644
      NvBool callout_created;
      nvkms_timer_proc_t *proc;
      void *dataPtr;
-@@ -403,7 +404,14 @@ static void nvkms_taskqueue_callback(void *arg, int pending)
+@@ -408,7 +409,14 @@ static void nvkms_taskqueue_callback(void *arg, int pending)
          callout_drain(&timer->callout);
      }
  
@@ -35,7 +35,7 @@ index 4c1a1c60669..4644cea28f4 100644
  
      if (timer->isRefPtr) {
          // If the object this timer refers to was destroyed, treat the timer as
-@@ -421,11 +429,13 @@ static void nvkms_taskqueue_callback(void *arg, int pending)
+@@ -426,11 +434,13 @@ static void nvkms_taskqueue_callback(void *arg, int pending)
          timer->complete = NV_TRUE;
      }
  
@@ -51,7 +51,7 @@ index 4c1a1c60669..4644cea28f4 100644
  }
  
  static void nvkms_callout_callback(void *arg)
-@@ -438,11 +448,13 @@ static void nvkms_callout_callback(void *arg)
+@@ -443,11 +453,13 @@ static void nvkms_callout_callback(void *arg)
  
  static void
  nvkms_init_timer(struct nvkms_timer_t *timer, nvkms_timer_proc_t *proc,
@@ -66,7 +66,7 @@ index 4c1a1c60669..4644cea28f4 100644
  
      timer->proc = proc;
      timer->dataPtr = dataPtr;
-@@ -476,19 +488,27 @@ nvkms_init_timer(struct nvkms_timer_t *timer, nvkms_timer_proc_t *proc,
+@@ -481,19 +493,27 @@ nvkms_init_timer(struct nvkms_timer_t *timer, nvkms_timer_proc_t *proc,
      mtx_unlock_spin(&nvkms_timers.lock);
  }
  
@@ -99,7 +99,7 @@ index 4c1a1c60669..4644cea28f4 100644
  NvBool
  nvkms_alloc_timer_with_ref_ptr(nvkms_timer_proc_t *proc,
                                 struct nvkms_ref_ptr *ref_ptr,
-@@ -503,7 +523,7 @@ nvkms_alloc_timer_with_ref_ptr(nvkms_timer_proc_t *proc,
+@@ -508,7 +528,7 @@ nvkms_alloc_timer_with_ref_ptr(nvkms_timer_proc_t *proc,
          // Reference the ref_ptr to make sure that it doesn't get freed before
          // the timer fires.
          nvkms_inc_ref(ref_ptr);
@@ -108,7 +108,7 @@ index 4c1a1c60669..4644cea28f4 100644
      }
  
      return timer != NULL;
-@@ -567,10 +587,11 @@ nvkms_event_queue_changed(nvkms_per_open_handle_t *pOpenKernel,
+@@ -572,10 +592,11 @@ nvkms_event_queue_changed(nvkms_per_open_handle_t *pOpenKernel,
              break;
          case NVKMS_CLIENT_KERNEL_SPACE:
              if (!popen->kernel.task) {
@@ -124,7 +124,7 @@ index 4c1a1c60669..4644cea28f4 100644
              }
              break;
      }
-@@ -821,10 +842,11 @@ static struct nvkms_per_open *nvkms_open_common(enum NvKmsClientType type,
+@@ -826,10 +847,11 @@ static struct nvkms_per_open *nvkms_open_common(enum NvKmsClientType type,
          case NVKMS_CLIENT_KERNEL_SPACE:
              /* enqueue our new task */
              popen->kernel.device = device;

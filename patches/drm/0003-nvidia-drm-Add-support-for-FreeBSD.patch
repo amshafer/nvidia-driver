@@ -1,4 +1,4 @@
-From 5fb2cf82be002bc74344fccea6bae597391764c1 Mon Sep 17 00:00:00 2001
+From e8025247530e1c112914ff481408be116abb66bd Mon Sep 17 00:00:00 2001
 From: Austin Shafer <ashafer@nvidia.com>
 Date: Sun, 13 Feb 2022 20:27:07 -0500
 Subject: [PATCH 3/3] nvidia-drm: Add support for FreeBSD
@@ -10,26 +10,25 @@ are in ifdefs next to the original linux code.
  .../resman/arch/nvalloc/unix/Linux/nv-mm.h    |  10 +
  .../arch/nvalloc/unix/Linux/nv-pci-table.c    |  28 +--
  .../arch/nvalloc/unix/Linux/nv-pci-table.h    |   2 +-
- .../nvidia-drm/Linux/nvidia-drm-conftest.h    |  44 +++-
+ .../nvidia-drm/Linux/nvidia-drm-conftest.h    |  53 +++-
  .../unix/nvidia-drm/common/nvidia-drm-crtc.c  |   6 +-
  .../unix/nvidia-drm/common/nvidia-drm-drv.c   |  36 ++-
  .../unix/nvidia-drm/common/nvidia-drm-fb.c    |   4 +
  .../unix/nvidia-drm/common/nvidia-drm-fence.c |   4 +
  .../common/nvidia-drm-freebsd-lkpi.c          | 236 ++++++++++++++++++
  .../common/nvidia-drm-gem-dma-buf.c           |  32 +++
- .../common/nvidia-drm-gem-nvkms-memory.c      |  90 ++++++-
+ .../common/nvidia-drm-gem-nvkms-memory.c      |  69 ++++-
  .../common/nvidia-drm-gem-user-memory.c       |  71 ++++++
  .../nvidia-drm/common/nvidia-drm-helper.c     |   4 +
  nvidia/src/nvidia-drm/nvidia-drm.c   |   2 +-
  .../unix/nvidia-drm/include/nvidia-drm-drv.h  |   5 +
  nvidia/src/nvidia-drm/nvidia-drm.h  |  47 ++++
  .../include/uapi/nvidia-drm-ioctl.h           |   2 +-
- .../FreeBSD/nvidia-modeset-freebsd.c          |   2 +
- 18 files changed, 589 insertions(+), 36 deletions(-)
+ 17 files changed, 575 insertions(+), 36 deletions(-)
  create mode 100644 nvidia/src/nvidia-drm/nvidia-drm-freebsd-lkpi.c
 
 diff --git a/nvidia/src/common/inc/nv-mm.h b/nvidia/src/common/inc/nv-mm.h
-index 9df900c1db9..35e90052bd6 100644
+index fbdf237120f..f5ce30d02d1 100644
 --- a/nvidia/src/common/inc/nv-mm.h
 +++ b/nvidia/src/common/inc/nv-mm.h
 @@ -23,7 +23,17 @@
@@ -106,7 +105,7 @@ index b28483bb61f..4dcac2082ca 100644
  
  #endif /* _NV_PCI_TABLE_H_ */
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-conftest.h b/nvidia/src/nvidia-drm/nvidia-drm-conftest.h
-index bed8d812656..bfc5da74a43 100644
+index bed8d812656..d13fe9dd32d 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-conftest.h
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-conftest.h
 @@ -23,7 +23,10 @@
@@ -121,7 +120,7 @@ index bed8d812656..bfc5da74a43 100644
  
  /*
   * NOTE: This file is expected to get included at the top before including any
-@@ -61,4 +64,43 @@
+@@ -61,4 +64,52 @@
  #undef NV_DRM_FENCE_AVAILABLE
  #endif
  
@@ -147,7 +146,16 @@ index bed8d812656..bfc5da74a43 100644
 +#include <drm/drm_encoder.h>
 +#include <linux/idr.h>
 +#include <drm/drm_auth.h>
++
++/*
++ * FreeBSD does not define vm_flags_t in its linuxkpi, since there is already
++ * a FreeBSD vm_flags_t (of a different size) and they don't want the names to
++ * collide.
++ */
++#define vm_flags_t unsigned long
 +#include "nv-mm.h"
++#undef vm_flags_t
++
 +#include <linux/mm.h>
 +#include <vm/vm_phys.h>
 +
@@ -166,7 +174,7 @@ index bed8d812656..bfc5da74a43 100644
 +
  #endif /* defined(__NVIDIA_DRM_CONFTEST_H__) */
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-crtc.c b/nvidia/src/nvidia-drm/nvidia-drm-crtc.c
-index 333387a155c..00b13458d52 100644
+index c79871fab29..a9b8b4cf328 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-crtc.c
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-crtc.c
 @@ -601,7 +601,7 @@ static int nv_drm_plane_atomic_set_property(
@@ -178,7 +186,7 @@ index 333387a155c..00b13458d52 100644
  
      if (property == nv_dev->nv_out_fence_property) {
  #if defined(NV_LINUX_NVHOST_H_PRESENT) && defined(CONFIG_TEGRA_GRHOST)
-@@ -1128,7 +1128,11 @@ nv_drm_plane_create(struct drm_device *dev,
+@@ -1130,7 +1130,11 @@ nv_drm_plane_create(struct drm_device *dev,
          formats, formats_count,
  #if defined(NV_DRM_UNIVERSAL_PLANE_INIT_HAS_FORMAT_MODIFIERS_ARG)
          (plane_type == DRM_PLANE_TYPE_CURSOR) ?
@@ -191,7 +199,7 @@ index 333387a155c..00b13458d52 100644
          plane_type
  #if defined(NV_DRM_UNIVERSAL_PLANE_INIT_HAS_NAME_ARG)
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-drv.c b/nvidia/src/nvidia-drm/nvidia-drm-drv.c
-index e48378faa57..f6407a1e856 100644
+index 090ec9b0c86..d49ef310b37 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-drv.c
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-drv.c
 @@ -22,6 +22,11 @@
@@ -215,7 +223,7 @@ index e48378faa57..f6407a1e856 100644
  
  static const char* nv_get_input_colorspace_name(
      enum NvKmsInputColorSpace colorSpace)
-@@ -1421,7 +1426,7 @@ static struct drm_driver nv_drm_driver = {
+@@ -1447,7 +1452,7 @@ static struct drm_driver nv_drm_driver = {
   * kernel supports atomic modeset and the 'modeset' kernel module
   * parameter is true.
   */
@@ -224,7 +232,7 @@ index e48378faa57..f6407a1e856 100644
  {
  #if defined(NV_DRM_ATOMIC_MODESET_AVAILABLE)
  
-@@ -1445,7 +1450,7 @@ static void nv_drm_update_drm_driver_features(void)
+@@ -1473,7 +1478,7 @@ static void nv_drm_update_drm_driver_features(void)
  /*
   * Helper function for allocate/register DRM device for given NVIDIA GPU ID.
   */
@@ -233,7 +241,7 @@ index e48378faa57..f6407a1e856 100644
  {
      struct nv_drm_device *nv_dev = NULL;
      struct drm_device *dev = NULL;
-@@ -1484,7 +1489,11 @@ static void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
+@@ -1512,7 +1517,11 @@ static void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
      nv_dev->dev = dev;
  
  #if defined(NV_DRM_DEVICE_HAS_PDEV)
@@ -245,7 +253,7 @@ index e48378faa57..f6407a1e856 100644
          dev->pdev = to_pci_dev(device);
      }
  #endif
-@@ -1498,8 +1507,8 @@ static void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
+@@ -1526,8 +1535,8 @@ static void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
  
      /* Add NVIDIA-DRM device into list */
  
@@ -256,7 +264,7 @@ index e48378faa57..f6407a1e856 100644
  
      return; /* Success */
  
-@@ -1515,6 +1524,7 @@ failed_drm_alloc:
+@@ -1543,6 +1552,7 @@ failed_drm_alloc:
  /*
   * Enumerate NVIDIA GPUs and allocate/register DRM device for each of them.
   */
@@ -264,7 +272,7 @@ index e48378faa57..f6407a1e856 100644
  int nv_drm_probe_devices(void)
  {
      nv_gpu_info_t *gpu_info = NULL;
-@@ -1557,21 +1567,25 @@ done:
+@@ -1585,21 +1595,25 @@ done:
  
      return ret;
  }
@@ -313,10 +321,10 @@ index 2747123ff5f..af8d31ad5e4 100644
              return ERR_PTR(-EINVAL);
          }
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-fence.c b/nvidia/src/nvidia-drm/nvidia-drm-fence.c
-index 71d7275a2a3..5127eefbebc 100644
+index 8b36591938c..b737e529d3b 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-fence.c
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-fence.c
-@@ -151,7 +151,11 @@ __nv_drm_prime_fence_signal(struct nv_drm_prime_fence *nv_fence)
+@@ -155,7 +155,11 @@ __nv_drm_prime_fence_signal(struct nv_drm_prime_fence *nv_fence)
  static void nv_drm_gem_prime_force_fence_signal(
      struct nv_drm_prime_fence_context *nv_fence_context)
  {
@@ -627,7 +635,7 @@ index fccde05d010..c40ecdcef5e 100644
      return ret;
  }
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-gem-nvkms-memory.c b/nvidia/src/nvidia-drm/nvidia-drm-gem-nvkms-memory.c
-index 3db75c8928a..ab8a3c6c51c 100644
+index 7d66c432ec0..3a58185e027 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-gem-nvkms-memory.c
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-gem-nvkms-memory.c
 @@ -38,6 +38,7 @@
@@ -734,34 +742,6 @@ index 3db75c8928a..ab8a3c6c51c 100644
              args->size);
          goto nvkms_alloc_memory_failed;
      }
-@@ -334,6 +401,27 @@ int nv_drm_dumb_create(
-         goto fail;
-     }
- 
-+#ifndef __linux__
-+    /*
-+     * register the pages with the vm system
-+     * These pages will be used to back
-+     * fault requests. Pages are registered
-+     * as PG_FICTITIOUS to signify device
-+     * mapped memory
-+     */
-+    vm_paddr_t start = (vm_paddr_t)nv_nvkms_memory->pPhysicalAddress;
-+    vm_paddr_t end = start + args->size;
-+    NV_DRM_LOG_INFO("nv_drm_dumb_create: at 0x%jx with size 0x%lx.\n", start, end);
-+
-+    ret = vm_phys_fictitious_reg_range(start, end, VM_MEMATTR_WRITE_COMBINING);
-+    if (ret) {
-+	    NV_DRM_LOG_INFO("Failed to register fictitious range 0x%jx-0x%lx (error = %d).\n",
-+			    start, end, ret);
-+        nv_drm_gem_object_unreference_unlocked(&nv_nvkms_memory->base);
-+        goto fail;
-+    }
-+#endif
-+
-     return nv_drm_gem_handle_create_drop_reference(file_priv,
-                                                    &nv_nvkms_memory->base,
-                                                    &args->handle);
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-gem-user-memory.c b/nvidia/src/nvidia-drm/nvidia-drm-gem-user-memory.c
 index 93824098794..cef22c825e6 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-gem-user-memory.c
@@ -978,10 +958,10 @@ index 9f1c31ce3f7..cbd47ab11a3 100644
  void nv_drm_exit(void);
  
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-ioctl.h b/nvidia/src/nvidia-drm/nvidia-drm-ioctl.h
-index 1d0e738591b..828b2549e67 100644
+index 6365e629597..c872cac24f6 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-ioctl.h
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-ioctl.h
-@@ -67,7 +67,7 @@
+@@ -71,7 +71,7 @@
   *
   * 'warning: suggest parentheses around arithmetic in operand of |'
   */
@@ -990,19 +970,6 @@ index 1d0e738591b..828b2549e67 100644
  #define DRM_IOCTL_NVIDIA_FENCE_SUPPORTED                         \
      DRM_IO(DRM_COMMAND_BASE + DRM_NVIDIA_FENCE_SUPPORTED)
  #define DRM_IOCTL_NVIDIA_DMABUF_SUPPORTED                        \
-diff --git a/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c b/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c
-index 4c3dee10328..4c1a1c60669 100644
---- a/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c
-+++ b/nvidia/src/nvidia-modeset/nvidia-modeset-freebsd.c
-@@ -28,6 +28,8 @@
- #include <sys/proc.h>
- #include <sys/stack.h>
- #include <sys/sysproto.h>
-+#include <sys/queue.h>
-+#include <sys/mutex.h>
- 
- #include "nvkms-ioctl.h"
- #include "nvidia-modeset-os-interface.h"
 -- 
 2.39.2
 
