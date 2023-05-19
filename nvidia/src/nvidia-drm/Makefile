@@ -93,7 +93,7 @@ DRMKMODDIR ?= ${HOME}/git/drm-kmod
 NV_CONFTEST_CFLAGS = \
         -I${DRMKMODDIR}/linuxkpi/bsd/include \
         -I${DRMKMODDIR}/linuxkpi/gplv2/include/ \
-        -I${SYSDIR}/compat/linuxkpi/common/include/ \
+        -I${BSDSRCTOP}/sys/compat/linuxkpi/common/include/ \
         -I${DRMKMODDIR}/linuxkpi/dummy/include/ \
         -I${BSDSRCTOP}/sys/compat/linuxkpi/dummy/include/ \
         -I${DRMKMODDIR}/include/ \
