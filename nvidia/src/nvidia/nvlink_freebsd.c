@@ -119,7 +119,7 @@ void nvlink_assert(int cond)
 {
 }
 
-void * nvlink_allocLock()
+void * nvlink_allocLock(void)
 {
     return NULL;
 }
