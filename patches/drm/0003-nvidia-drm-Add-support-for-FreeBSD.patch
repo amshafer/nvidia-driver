@@ -1,4 +1,4 @@
-From e8025247530e1c112914ff481408be116abb66bd Mon Sep 17 00:00:00 2001
+From 6cf55132df78195a30ae4fa92506f70d13e79249 Mon Sep 17 00:00:00 2001
 From: Austin Shafer <ashafer@nvidia.com>
 Date: Sun, 13 Feb 2022 20:27:07 -0500
 Subject: [PATCH 3/3] nvidia-drm: Add support for FreeBSD
@@ -12,7 +12,7 @@ are in ifdefs next to the original linux code.
  .../arch/nvalloc/unix/Linux/nv-pci-table.h    |   2 +-
  .../nvidia-drm/Linux/nvidia-drm-conftest.h    |  53 +++-
  .../unix/nvidia-drm/common/nvidia-drm-crtc.c  |   6 +-
- .../unix/nvidia-drm/common/nvidia-drm-drv.c   |  36 ++-
+ .../unix/nvidia-drm/common/nvidia-drm-drv.c   |  17 +-
  .../unix/nvidia-drm/common/nvidia-drm-fb.c    |   4 +
  .../unix/nvidia-drm/common/nvidia-drm-fence.c |   4 +
  .../common/nvidia-drm-freebsd-lkpi.c          | 236 ++++++++++++++++++
@@ -24,7 +24,7 @@ are in ifdefs next to the original linux code.
  .../unix/nvidia-drm/include/nvidia-drm-drv.h  |   5 +
  nvidia/src/nvidia-drm/nvidia-drm.h  |  47 ++++
  .../include/uapi/nvidia-drm-ioctl.h           |   2 +-
- 17 files changed, 575 insertions(+), 36 deletions(-)
+ 17 files changed, 565 insertions(+), 27 deletions(-)
  create mode 100644 nvidia/src/nvidia-drm/nvidia-drm-freebsd-lkpi.c
 
 diff --git a/nvidia/src/common/inc/nv-mm.h b/nvidia/src/common/inc/nv-mm.h
@@ -174,10 +174,10 @@ index bed8d812656..d13fe9dd32d 100644
 +
  #endif /* defined(__NVIDIA_DRM_CONFTEST_H__) */
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-crtc.c b/nvidia/src/nvidia-drm/nvidia-drm-crtc.c
-index c79871fab29..a9b8b4cf328 100644
+index 6e06d89c703..cd6ef8c814c 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-crtc.c
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-crtc.c
-@@ -601,7 +601,7 @@ static int nv_drm_plane_atomic_set_property(
+@@ -610,7 +610,7 @@ static int nv_drm_plane_atomic_set_property(
  {
      struct nv_drm_device *nv_dev = to_nv_device(plane->dev);
      struct nv_drm_plane_state *nv_drm_plane_state =
@@ -186,7 +186,7 @@ index c79871fab29..a9b8b4cf328 100644
  
      if (property == nv_dev->nv_out_fence_property) {
  #if defined(NV_LINUX_NVHOST_H_PRESENT) && defined(CONFIG_TEGRA_GRHOST)
-@@ -1130,7 +1130,11 @@ nv_drm_plane_create(struct drm_device *dev,
+@@ -1139,7 +1139,11 @@ nv_drm_plane_create(struct drm_device *dev,
          formats, formats_count,
  #if defined(NV_DRM_UNIVERSAL_PLANE_INIT_HAS_FORMAT_MODIFIERS_ARG)
          (plane_type == DRM_PLANE_TYPE_CURSOR) ?
@@ -199,7 +199,7 @@ index c79871fab29..a9b8b4cf328 100644
          plane_type
  #if defined(NV_DRM_UNIVERSAL_PLANE_INIT_HAS_NAME_ARG)
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-drv.c b/nvidia/src/nvidia-drm/nvidia-drm-drv.c
-index 090ec9b0c86..d49ef310b37 100644
+index 197ff5ca169..79fcca6f3a5 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-drv.c
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-drv.c
 @@ -22,6 +22,11 @@
@@ -214,16 +214,7 @@ index 090ec9b0c86..d49ef310b37 100644
  #include "nvidia-drm-priv.h"
  #include "nvidia-drm-drv.h"
  #include "nvidia-drm-fb.h"
-@@ -84,7 +89,7 @@
- #include <drm/drm_atomic_helper.h>
- #endif
- 
--static struct nv_drm_device *dev_list = NULL;
-+static struct nv_drm_device *nv_dev_list = NULL;
- 
- static const char* nv_get_input_colorspace_name(
-     enum NvKmsInputColorSpace colorSpace)
-@@ -1447,7 +1452,7 @@ static struct drm_driver nv_drm_driver = {
+@@ -1640,7 +1645,7 @@ static struct drm_driver nv_drm_driver = {
   * kernel supports atomic modeset and the 'modeset' kernel module
   * parameter is true.
   */
@@ -232,7 +223,7 @@ index 090ec9b0c86..d49ef310b37 100644
  {
  #if defined(NV_DRM_ATOMIC_MODESET_AVAILABLE)
  
-@@ -1473,7 +1478,7 @@ static void nv_drm_update_drm_driver_features(void)
+@@ -1666,7 +1671,7 @@ static void nv_drm_update_drm_driver_features(void)
  /*
   * Helper function for allocate/register DRM device for given NVIDIA GPU ID.
   */
@@ -241,7 +232,7 @@ index 090ec9b0c86..d49ef310b37 100644
  {
      struct nv_drm_device *nv_dev = NULL;
      struct drm_device *dev = NULL;
-@@ -1512,7 +1517,11 @@ static void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
+@@ -1705,7 +1710,11 @@ static void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
      nv_dev->dev = dev;
  
  #if defined(NV_DRM_DEVICE_HAS_PDEV)
@@ -253,18 +244,7 @@ index 090ec9b0c86..d49ef310b37 100644
          dev->pdev = to_pci_dev(device);
      }
  #endif
-@@ -1526,8 +1535,8 @@ static void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
- 
-     /* Add NVIDIA-DRM device into list */
- 
--    nv_dev->next = dev_list;
--    dev_list = nv_dev;
-+    nv_dev->next = nv_dev_list;
-+    nv_dev_list = nv_dev;
- 
-     return; /* Success */
- 
-@@ -1543,6 +1552,7 @@ failed_drm_alloc:
+@@ -1766,6 +1775,7 @@ failed_drm_alloc:
  /*
   * Enumerate NVIDIA GPUs and allocate/register DRM device for each of them.
   */
@@ -272,7 +252,7 @@ index 090ec9b0c86..d49ef310b37 100644
  int nv_drm_probe_devices(void)
  {
      nv_gpu_info_t *gpu_info = NULL;
-@@ -1585,21 +1595,25 @@ done:
+@@ -1808,6 +1818,9 @@ done:
  
      return ret;
  }
@@ -282,28 +262,6 @@ index 090ec9b0c86..d49ef310b37 100644
  
  /*
   * Unregister all NVIDIA DRM devices.
-  */
- void nv_drm_remove_devices(void)
- {
--    while (dev_list != NULL) {
--        struct nv_drm_device *next = dev_list->next;
-+    while (nv_dev_list != NULL) {
-+        struct nv_drm_device *next = nv_dev_list->next;
- 
--        drm_dev_unregister(dev_list->dev);
--        nv_drm_dev_free(dev_list->dev);
-+        /* check if we should free the drm_device->dev ?? aka the pci_dev from lkpi */
-+        drm_dev_unregister(nv_dev_list->dev);
-+        nv_drm_dev_free(nv_dev_list->dev);
- 
--        nv_drm_free(dev_list);
-+        nv_drm_free(nv_dev_list);
- 
--        dev_list = next;
-+        nv_dev_list = next;
-     }
- }
- 
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-fb.c b/nvidia/src/nvidia-drm/nvidia-drm-fb.c
 index 2747123ff5f..af8d31ad5e4 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-fb.c
@@ -958,7 +916,7 @@ index 9f1c31ce3f7..cbd47ab11a3 100644
  void nv_drm_exit(void);
  
 diff --git a/nvidia/src/nvidia-drm/nvidia-drm-ioctl.h b/nvidia/src/nvidia-drm/nvidia-drm-ioctl.h
-index 6365e629597..c872cac24f6 100644
+index d1e7a078035..62f3209ac3e 100644
 --- a/nvidia/src/nvidia-drm/nvidia-drm-ioctl.h
 +++ b/nvidia/src/nvidia-drm/nvidia-drm-ioctl.h
 @@ -71,7 +71,7 @@
@@ -971,5 +929,5 @@ index 6365e629597..c872cac24f6 100644
      DRM_IO(DRM_COMMAND_BASE + DRM_NVIDIA_FENCE_SUPPORTED)
  #define DRM_IOCTL_NVIDIA_DMABUF_SUPPORTED                        \
 -- 
-2.39.2
+2.41.0
 
