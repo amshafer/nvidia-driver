@@ -134,6 +134,8 @@ NV_CONFTEST_GENERIC_COMPILE_TESTS += drm_atomic_available
 NV_CONFTEST_GENERIC_COMPILE_TESTS += is_export_symbol_gpl_refcount_inc
 NV_CONFTEST_GENERIC_COMPILE_TESTS += is_export_symbol_gpl_refcount_dec_and_test
 NV_CONFTEST_GENERIC_COMPILE_TESTS += drm_alpha_blending_available
+NV_CONFTEST_GENERIC_COMPILE_TESTS += is_export_symbol_present_drm_gem_prime_fd_to_handle
+NV_CONFTEST_GENERIC_COMPILE_TESTS += is_export_symbol_present_drm_gem_prime_handle_to_fd
 
 conftest/generic.h: ${PWD}/conftest.sh ${DRMKMODDIR}
 	mkdir -p conftest
@@ -219,6 +221,8 @@ NV_CONFTEST_TYPE_COMPILE_TESTS += drm_file_get_master
 NV_CONFTEST_TYPE_COMPILE_TESTS += drm_modeset_lock_all_end
 NV_CONFTEST_TYPE_COMPILE_TESTS += drm_connector_lookup
 NV_CONFTEST_TYPE_COMPILE_TESTS += drm_connector_put
+NV_CONFTEST_TYPE_COMPILE_TESTS += vm_area_struct_has_const_vm_flags
+NV_CONFTEST_TYPE_COMPILE_TESTS += drm_driver_has_dumb_destroy
 
 conftest/type.h: ${PWD}/conftest.sh ${DRMKMODDIR}
 	mkdir -p conftest
