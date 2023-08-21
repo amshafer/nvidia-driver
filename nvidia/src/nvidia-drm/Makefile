@@ -127,7 +127,7 @@ NV_CONFTEST_CFLAGS += -DLINUXKPI_VERSION=${LINUXKPI_VERSION_NUMBER}
 
 conftest/headers.h: ${PWD}/conftest.sh ${DRMKMODDIR}
 	mkdir -p conftest
-	${PWD}/conftest.sh ${CC} x86_64 ${DRMKMODDIR} this_arg_not_used_on_bsd test_kernel_headers '${NV_CONFTEST_CFLAGS}' > conftest/headers.h
+	${PWD}/conftest.sh '${CC}' x86_64 ${DRMKMODDIR} this_arg_not_used_on_bsd test_kernel_headers '${NV_CONFTEST_CFLAGS}' > conftest/headers.h
 
 NV_CONFTEST_GENERIC_COMPILE_TESTS += drm_available
 NV_CONFTEST_GENERIC_COMPILE_TESTS += drm_atomic_available
@@ -137,7 +137,7 @@ NV_CONFTEST_GENERIC_COMPILE_TESTS += drm_alpha_blending_available
 
 conftest/generic.h: ${PWD}/conftest.sh ${DRMKMODDIR}
 	mkdir -p conftest
-	${PWD}/conftest.sh ${CC} x86_64 ${DRMKMODDIR} this_arg_not_used_on_bsd compile_tests '${NV_CONFTEST_CFLAGS}' ${NV_CONFTEST_GENERIC_COMPILE_TESTS} > conftest/generic.h
+	${PWD}/conftest.sh '${CC}' x86_64 ${DRMKMODDIR} this_arg_not_used_on_bsd compile_tests '${NV_CONFTEST_CFLAGS}' ${NV_CONFTEST_GENERIC_COMPILE_TESTS} > conftest/generic.h
 
 NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_dev_unref
 NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_reinit_primary_mode_group
@@ -166,7 +166,7 @@ NV_CONFTEST_FUNCTION_COMPILE_TESTS += timer_setup
 
 conftest/function.h: ${PWD}/conftest.sh ${DRMKMODDIR}
 	mkdir -p conftest
-	${PWD}/conftest.sh ${CC} x86_64 ${DRMKMODDIR} this_arg_not_used_on_bsd compile_tests '${NV_CONFTEST_CFLAGS}' ${NV_CONFTEST_FUNCTION_COMPILE_TESTS} > conftest/function.h
+	${PWD}/conftest.sh '${CC}' x86_64 ${DRMKMODDIR} this_arg_not_used_on_bsd compile_tests '${NV_CONFTEST_CFLAGS}' ${NV_CONFTEST_FUNCTION_COMPILE_TESTS} > conftest/function.h
 
 NV_CONFTEST_TYPE_COMPILE_TESTS += drm_bus_present
 NV_CONFTEST_TYPE_COMPILE_TESTS += drm_bus_has_bus_type
@@ -222,7 +222,7 @@ NV_CONFTEST_TYPE_COMPILE_TESTS += drm_connector_put
 
 conftest/type.h: ${PWD}/conftest.sh ${DRMKMODDIR}
 	mkdir -p conftest
-	${PWD}/conftest.sh ${CC} x86_64 ${DRMKMODDIR} this_arg_not_used_on_bsd compile_tests '${NV_CONFTEST_CFLAGS}' ${NV_CONFTEST_TYPE_COMPILE_TESTS} > conftest/type.h
+	${PWD}/conftest.sh '${CC}' x86_64 ${DRMKMODDIR} this_arg_not_used_on_bsd compile_tests '${NV_CONFTEST_CFLAGS}' ${NV_CONFTEST_TYPE_COMPILE_TESTS} > conftest/type.h
 
 CONFTEST_FILES = conftest/generic.h conftest/function.h conftest/type.h
 
