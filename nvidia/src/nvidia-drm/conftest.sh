@@ -207,7 +207,7 @@ build_cflags() {
     fi
 }
 
-if [ ${OS_FREEBSD} -neq 1 ] ; then
+if [ ${OS_FREEBSD} -ne 1 ] ; then
 CONFTEST_PREAMBLE="#include \"conftest/headers.h\"
     #if defined(NV_LINUX_KCONFIG_H_PRESENT)
     #include <linux/kconfig.h>
