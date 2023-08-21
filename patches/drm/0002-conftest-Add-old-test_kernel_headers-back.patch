@@ -1,4 +1,4 @@
-From b45a19206751cd06973a7f00ab560cabc4b1626f Mon Sep 17 00:00:00 2001
+From 490309fa4b824a225435f76a6bac219d1b5b84f7 Mon Sep 17 00:00:00 2001
 From: Austin Shafer <ashafer@nvidia.com>
 Date: Mon, 17 Oct 2022 16:15:46 -0400
 Subject: [PATCH 2/3] conftest: Add old test_kernel_headers back
@@ -11,7 +11,7 @@ back in.
  1 file changed, 100 insertions(+)
 
 diff --git a/nvidia/src/nvidia-drm/conftest.sh b/nvidia/src/nvidia-drm/conftest.sh
-index ccd1b6c2333..d2e4ba93790 100755
+index cde817830b1..832f914b0b3 100755
 --- a/nvidia/src/nvidia-drm/conftest.sh
 +++ b/nvidia/src/nvidia-drm/conftest.sh
 @@ -7024,6 +7024,106 @@ case "$5" in
