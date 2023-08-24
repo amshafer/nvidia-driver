@@ -1382,10 +1382,10 @@ static struct drm_driver nv_drm_driver = {
  * .prime_fd_to_handle are unspecified, so it's fine to just skip specifying
  * them if the helpers aren't present.
  */
-#if NV_IS_EXPORT_SYMBOL_PRESENT_drm_gem_prime_handle_to_fd
+#if defined(NV_DRM_GEM_PRIME_HANDLE_TO_FD)
     .prime_handle_to_fd     = drm_gem_prime_handle_to_fd,
 #endif
-#if NV_IS_EXPORT_SYMBOL_PRESENT_drm_gem_prime_fd_to_handle
+#if defined(NV_DRM_GEM_PRIME_FD_TO_HANDLE)
     .prime_fd_to_handle     = drm_gem_prime_fd_to_handle,
 #endif
 

@@ -212,11 +212,6 @@ CONFTEST_PREAMBLE="#include \"conftest/headers.h\"
     #if defined(NV_LINUX_KCONFIG_H_PRESENT)
     #include <linux/kconfig.h>
     #endif
-    #if defined(NV_GENERATED_AUTOCONF_H_PRESENT)
-    #include <generated/autoconf.h>
-    #else
-    #include <linux/autoconf.h>
-    #endif
     #if defined(CONFIG_XEN) && \
         defined(CONFIG_XEN_INTERFACE_VERSION) &&  !defined(__XEN_INTERFACE_VERSION__)
     #define __XEN_INTERFACE_VERSION__ CONFIG_XEN_INTERFACE_VERSION
@@ -4345,6 +4340,43 @@ compile_test() {
             }"
 
             compile_check_conftest "$CODE" "NV_DRM_ALPHA_BLENDING_AVAILABLE" "" "generic"
+        ;;
+
+        drm_gem_prime_fd_to_handle)
+            # linux-next commit 71a7974ac701 ("drm/prime: Unexport helpers for fd/handle
+            # conversion") unexports drm_gem_prime_handle_to_fd() and
+            # drm_gem_prime_fd_to_handle().
+            #
+            # Prior linux-next commit 6b85aa68d9d5 ("drm: Enable PRIME import/export for
+            # all drivers") made these helpers the default when .prime_handle_to_fd /
+            # .prime_fd_to_handle are unspecified, so it's fine to just skip specifying
+            # them if the helpers aren't present.
+            CODE="
+            #if defined(NV_DRM_DRM_PRIME_H_PRESENT)
+            #include <drm/drm_prime.h>
+            #endif
+
+            int drm_gem_prime_fd_to_handle(struct drm_device *dev,
+                       struct drm_file *file_priv, int prime_fd, uint32_t *handle) {
+                return 0;
+            }"
+
+            compile_check_conftest "$CODE" "NV_DRM_GEM_PRIME_FD_TO_HANDLE" "" "generic"
+        ;;
+
+        drm_gem_prime_handle_to_fd)
+            CODE="
+            #if defined(NV_DRM_DRM_PRIME_H_PRESENT)
+            #include <drm/drm_prime.h>
+            #endif
+
+            int drm_gem_prime_handle_to_fd(struct drm_device *dev,
+                       struct drm_file *file_priv, uint32_t handle, uint32_t flags,
+                       int *prime_fd) {
+                return 0;
+            }"
+
+            compile_check_conftest "$CODE" "NV_DRM_GEM_PRIME_HANDLE_TO_FD" "" "generic"
         ;;
 
         drm_rotation_available)
