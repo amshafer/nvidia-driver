@@ -90,6 +90,7 @@ known issues that are currently not supported:
 * [Porting nvidia-drm.ko to FreeBSD](https://badland.io/nvidia-drm.md) (2019-08-01)
 * [Anatomy of the FreeBSD NVIDIA driver](https://badland.io/nvidia.md) (2019-08-01)
 * [Announcing nvidia-drm port and Call for Testing](https://badland.io/announcing_nvidia_drm.md) (2022-11-13)
+* [Configuring PRIME in 2023 (on FreeBSD)](https://badland.io/prime-configuration.md) (2023-04-13)
 
 ## How to update this port
 
