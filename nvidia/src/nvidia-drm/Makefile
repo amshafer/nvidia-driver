@@ -165,11 +165,6 @@ NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_gem_object_put_unlocked
 NV_CONFTEST_FUNCTION_COMPILE_TESTS += nvhost_dma_fence_unpack
 NV_CONFTEST_FUNCTION_COMPILE_TESTS += list_is_first
 NV_CONFTEST_FUNCTION_COMPILE_TESTS += timer_setup
-NV_CONFTEST_FUNCTION_COMPILE_TESTS += dma_fence_set_error
-NV_CONFTEST_FUNCTION_COMPILE_TESTS += sync_file_get_fence
-NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_aperture_remove_conflicting_pci_framebuffers
-NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_fbdev_generic_setup
-NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_connector_attach_hdr_output_metadata_property
 
 conftest/function.h: ${PWD}/conftest.sh ${DRMKMODDIR}
 	mkdir -p conftest
@@ -228,9 +223,6 @@ NV_CONFTEST_TYPE_COMPILE_TESTS += drm_connector_lookup
 NV_CONFTEST_TYPE_COMPILE_TESTS += drm_connector_put
 NV_CONFTEST_TYPE_COMPILE_TESTS += vm_area_struct_has_const_vm_flags
 NV_CONFTEST_TYPE_COMPILE_TESTS += drm_driver_has_dumb_destroy
-NV_CONFTEST_TYPE_COMPILE_TESTS += fence_ops_use_64bit_seqno
-NV_CONFTEST_TYPE_COMPILE_TESTS += drm_aperture_remove_conflicting_pci_framebuffers_has_driver_arg
-NV_CONFTEST_TYPE_COMPILE_TESTS += drm_mode_create_dp_colorspace_property_has_supported_colorspaces_arg
 
 conftest/type.h: ${PWD}/conftest.sh ${DRMKMODDIR}
 	mkdir -p conftest
