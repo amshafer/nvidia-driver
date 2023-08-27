@@ -5,13 +5,38 @@ freebsd_current_task:
   env:
     HOME: /tmp/ # Cirrus FreeBSD images do not specify home by default
 
-  install_dependencies_script: pkg install -y nvidia-driver git
+  install_dependencies_script: pkg install -y nvidia-driver git drm-515-kmod
   # Cirrus images already have their source checked out in /usr/src
   #
   # clone_freebsd_source_script: git clone --depth 1 https://github.com/freebsd/freebsd-src/ /usr/src
   clone_drm_kmod_source_script:
     - mkdir -p $HOME/git
-    - git clone --depth 1 https://github.com/freebsd/drm-kmod $HOME/git/drm-kmod
+    - git clone --depth 1 https://github.com/freebsd/drm-kmod $HOME/git/drm-kmod --branch 5.15-lts
+
+  build_drm_kmod_script:
+    - cd $HOME/git/drm-kmod
+    - make -j `sysctl -n hw.ncpu` && make install
+
+  # Kick of our build
+  build_script: make -j `sysctl -n hw.ncpu` -C nvidia/
+
+  install_script: make install
+  load_kmod_script: kldload nvidia-drm
+
+freebsd_13_task:
+  freebsd_instance:
+    image_family: freebsd-13-2
+
+  env:
+    HOME: /tmp/ # Cirrus FreeBSD images do not specify home by default
+
+  install_dependencies_script: pkg install -y nvidia-driver git drm-510-kmod
+  # Cirrus images already have their source checked out in /usr/src
+  #
+  # clone_freebsd_source_script: git clone --depth 1 https://github.com/freebsd/freebsd-src/ /usr/src
+  clone_drm_kmod_source_script:
+    - mkdir -p $HOME/git
+    - git clone --depth 1 https://github.com/freebsd/drm-kmod $HOME/git/drm-kmod --branch 5.10-lts
 
   # Kick of our build
   build_script: make -j `sysctl -n hw.ncpu` -C nvidia/
