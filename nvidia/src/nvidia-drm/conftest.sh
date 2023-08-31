@@ -313,16 +313,53 @@ compile_check_conftest() {
     fi
 }
 
-export_symbol_present_conftest() {
-    #
-    # Check Module.symvers to see whether the given symbol is present.
-    #
+check_symbol_exists() {
+    # Check that the given symbol is available
 
     SYMBOL="$1"
     TAB='	'
 
-    if grep -e "${TAB}${SYMBOL}${TAB}.*${TAB}EXPORT_SYMBOL.*\$" \
-               "$OUTPUT/Module.symvers" >/dev/null 2>&1; then
+    if [ ${OS_FREEBSD} -ne 1 ] ; then
+        # Linux:
+        # ------
+        #
+        # Check Module.symvers to see whether the given symbol is present.
+        #
+        if grep -e "${TAB}${SYMBOL}${TAB}.*${TAB}EXPORT_SYMBOL.*\$" \
+                   "$OUTPUT/Module.symvers" >/dev/null 2>&1; then
+            return 0
+        fi
+    else
+        # FreeBSD:
+        # ------
+        #
+        # Check if any of the linuxkpi or drm kernel module files contain
+        # references to this symbol.
+
+        # Get the /boot/kernel/ and /boot/modules paths, convert the list to a
+        # space separated list instead of semicolon separated so we can iterate
+        # over it.
+        KMODPATHS=`sysctl -n kern.module_path | sed -e "s/;/ /g"`
+
+        for KMOD in linuxkpi.ko linuxkpi_gplv2.ko drm.ko dmabuf.ko ; do
+            for KMODPATH in $KMODPATHS; do
+                if [ -e "$KMODPATH/$KMOD" ] ; then
+                    if nm "$KMODPATH/$KMOD" | grep "$SYMBOL" ; then
+                        return 0
+                    fi
+                fi
+            done
+        done
+    fi
+
+    return 1
+}
+
+export_symbol_present_conftest() {
+
+    SYMBOL="$1"
+
+    if check_symbol_exists $SYMBOL; then
         echo "#define NV_IS_EXPORT_SYMBOL_PRESENT_$SYMBOL 1" |
             append_conftest "symbols"
     else
@@ -4340,43 +4377,6 @@ compile_test() {
             }"
 
             compile_check_conftest "$CODE" "NV_DRM_ALPHA_BLENDING_AVAILABLE" "" "generic"
-        ;;
-
-        drm_gem_prime_fd_to_handle)
-            # linux-next commit 71a7974ac701 ("drm/prime: Unexport helpers for fd/handle
-            # conversion") unexports drm_gem_prime_handle_to_fd() and
-            # drm_gem_prime_fd_to_handle().
-            #
-            # Prior linux-next commit 6b85aa68d9d5 ("drm: Enable PRIME import/export for
-            # all drivers") made these helpers the default when .prime_handle_to_fd /
-            # .prime_fd_to_handle are unspecified, so it's fine to just skip specifying
-            # them if the helpers aren't present.
-            CODE="
-            #if defined(NV_DRM_DRM_PRIME_H_PRESENT)
-            #include <drm/drm_prime.h>
-            #endif
-
-            int drm_gem_prime_fd_to_handle(struct drm_device *dev,
-                       struct drm_file *file_priv, int prime_fd, uint32_t *handle) {
-                return 0;
-            }"
-
-            compile_check_conftest "$CODE" "NV_DRM_GEM_PRIME_FD_TO_HANDLE" "" "generic"
-        ;;
-
-        drm_gem_prime_handle_to_fd)
-            CODE="
-            #if defined(NV_DRM_DRM_PRIME_H_PRESENT)
-            #include <drm/drm_prime.h>
-            #endif
-
-            int drm_gem_prime_handle_to_fd(struct drm_device *dev,
-                       struct drm_file *file_priv, uint32_t handle, uint32_t flags,
-                       int *prime_fd) {
-                return 0;
-            }"
-
-            compile_check_conftest "$CODE" "NV_DRM_GEM_PRIME_HANDLE_TO_FD" "" "generic"
         ;;
 
         drm_rotation_available)

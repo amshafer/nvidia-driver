@@ -134,8 +134,8 @@ NV_CONFTEST_GENERIC_COMPILE_TESTS += drm_atomic_available
 NV_CONFTEST_GENERIC_COMPILE_TESTS += is_export_symbol_gpl_refcount_inc
 NV_CONFTEST_GENERIC_COMPILE_TESTS += is_export_symbol_gpl_refcount_dec_and_test
 NV_CONFTEST_GENERIC_COMPILE_TESTS += drm_alpha_blending_available
-NV_CONFTEST_GENERIC_COMPILE_TESTS += drm_gem_prime_fd_to_handle
-NV_CONFTEST_GENERIC_COMPILE_TESTS += drm_gem_prime_handle_to_fd
+NV_CONFTEST_GENERIC_COMPILE_TESTS += is_export_symbol_present_drm_gem_prime_fd_to_handle
+NV_CONFTEST_GENERIC_COMPILE_TESTS += is_export_symbol_present_drm_gem_prime_handle_to_fd
 
 conftest/generic.h: ${PWD}/conftest.sh ${DRMKMODDIR}
 	mkdir -p conftest
