@@ -1,7 +1,7 @@
-From 2f767c68c1991b4b2ca18345485289d0fc115e92 Mon Sep 17 00:00:00 2001
+From 4da38af3e01ed5e4d6189a244d4089873b429ee1 Mon Sep 17 00:00:00 2001
 From: Austin Shafer <ashafer@nvidia.com>
-Date: Tue, 18 Oct 2022 12:57:10 -0400
-Subject: [PATCH 1/3] nvidia-drm: Add build logic for FreeBSD
+Date: Tue, 5 Sep 2023 15:49:05 -0400
+Subject: [PATCH 2/3] nvidia-drm: Add build logic for FreeBSD
 
 This adds infrastructure for building nvidia-drm, but not any
 compilation fixes or FreeBSD workarounds. This is just build system
@@ -9,12 +9,6 @@ changes.
 
 This also includes WARs in the conftest script to handle FreeBSD
 ---
- .../resman/arch/nvalloc/unix/FreeBSD/Makefile |   4 +
- .../arch/nvalloc/unix/Linux/conftest.sh       |  64 ++---
- nvidia/src/nvidia-drm/Makefile      | 250 ++++++++++++++++++
- 3 files changed, 282 insertions(+), 36 deletions(-)
- create mode 100644 nvidia/src/nvidia-drm/Makefile
-
 diff --git a/nvidia/src/Makefile b/nvidia/src/Makefile
 index 97c031cfdb2..95b12a350b1 100644
 --- a/nvidia/src/Makefile
@@ -30,194 +24,31 @@ index 97c031cfdb2..95b12a350b1 100644
  setup:  install
  
  .include <bsd.subdir.mk>
-diff --git a/nvidia/src/nvidia-drm/conftest.sh b/nvidia/src/nvidia-drm/conftest.sh
-index bd1d64d0ff7..cde817830b1 100755
---- a/nvidia/src/nvidia-drm/conftest.sh
-+++ b/nvidia/src/nvidia-drm/conftest.sh
-@@ -14,6 +14,12 @@ OUTPUT=$4
- XEN_PRESENT=1
- PREEMPT_RT_PRESENT=0
- 
-+OS=`uname -s`
-+OS_FREEBSD=0
-+if [ "$OS" = "FreeBSD" ] ; then
-+    OS_FREEBSD=1
-+fi
-+
- # VGX_BUILD parameter defined only for VGX builds (vGPU Host driver)
- # VGX_KVM_BUILD parameter defined only vGPU builds on KVM hypervisor
- # GRID_BUILD parameter defined only for GRID builds (GRID Guest driver)
-@@ -201,6 +207,7 @@ build_cflags() {
-     fi
- }
- 
-+if [ ${OS_FREEBSD} -ne 1 ] ; then
- CONFTEST_PREAMBLE="#include \"conftest/headers.h\"
-     #if defined(NV_LINUX_KCONFIG_H_PRESENT)
-     #include <linux/kconfig.h>
-@@ -221,6 +228,9 @@ CONFTEST_PREAMBLE="#include \"conftest/headers.h\"
-     #define KASAN_SHADOW_SCALE_SHIFT 3
-     #endif
-     #endif"
-+else
-+CONFTEST_PREAMBLE="#include \"conftest/headers.h\""
-+fi
- 
- test_configuration_option() {
-     #
-@@ -1363,7 +1373,7 @@ compile_test() {
-             #include <drm/drm_drv.h>
-             #endif
- 
--            #if !defined(CONFIG_DRM) && !defined(CONFIG_DRM_MODULE)
-+            #if !defined(CONFIG_DRM) && !defined(CONFIG_DRM_MODULE) && !defined(__FreeBSD__)
-             #error DRM not enabled
-             #endif
- 
-@@ -1827,7 +1837,7 @@ compile_test() {
-             #include <drm/drmP.h>
-             #endif
-             #include <drm/drm_atomic.h>
--            #if !defined(CONFIG_DRM) && !defined(CONFIG_DRM_MODULE)
-+            #if !defined(CONFIG_DRM) && !defined(CONFIG_DRM_MODULE) && !defined(__FreeBSD__)
-             #error DRM not enabled
-             #endif
-             void conftest_drm_atomic_modeset_available(void) {
-@@ -2378,11 +2388,8 @@ compile_test() {
-             #
-             echo "$CONFTEST_PREAMBLE
-             #include <drm/drm_crtc_helper.h>
--            void drm_helper_mode_fill_fb_struct(struct drm_device *dev,
--                                                struct drm_framebuffer *fb,
--                                                const struct drm_mode_fb_cmd2 *mode_cmd)
--            {
--                return;
-+            void conftest_drm_helper_mode_fill_fb_struct() {
-+                drm_helper_mode_fill_fb_struct(NULL, NULL, NULL);
-             }" > conftest$$.c;
- 
-             $CC $CFLAGS -c conftest$$.c > /dev/null 2>&1
-@@ -2405,10 +2412,8 @@ compile_test() {
-                 #
-                 echo "$CONFTEST_PREAMBLE
-                 #include <drm/drm_crtc_helper.h>
--                void drm_helper_mode_fill_fb_struct(struct drm_framebuffer *fb,
--                                                    const struct drm_mode_fb_cmd2 *mode_cmd)
--                {
--                    return;
-+                void conftest_drm_helper_mode_fill_fb_struct() {
-+                    drm_helper_mode_fill_fb_struct(NULL, NULL);
-                 }" > conftest$$.c;
- 
-                 $CC $CFLAGS -c conftest$$.c > /dev/null 2>&1
-@@ -2535,13 +2540,8 @@ compile_test() {
- 
-             echo "$CONFTEST_PREAMBLE
-             #include <linux/mm.h>
--            long get_user_pages(unsigned long start,
--                                unsigned long nr_pages,
--                                int write,
--                                int force,
--                                struct page **pages,
--                                struct vm_area_struct **vmas) {
--                return 0;
-+            void conftest_get_user_pages() {
-+                get_user_pages(0, 0, 0, 0, NULL, NULL);
-             }" > conftest$$.c
- 
-             $CC $CFLAGS -c conftest$$.c > /dev/null 2>&1
-@@ -2561,12 +2561,8 @@ compile_test() {
- 
-             echo "$CONFTEST_PREAMBLE
-             #include <linux/mm.h>
--            long get_user_pages(unsigned long start,
--                                unsigned long nr_pages,
--                                unsigned int gup_flags,
--                                struct page **pages,
--                                struct vm_area_struct **vmas) {
--                return 0;
-+            void conftest_get_user_pages() {
-+                get_user_pages(0, 0, 0, NULL, NULL);
-             }" > conftest$$.c
- 
-             $CC $CFLAGS -c conftest$$.c > /dev/null 2>&1
-@@ -2587,14 +2583,8 @@ compile_test() {
- 
-             echo "$CONFTEST_PREAMBLE
-             #include <linux/mm.h>
--            long get_user_pages(struct task_struct *tsk,
--                                struct mm_struct *mm,
--                                unsigned long start,
--                                unsigned long nr_pages,
--                                unsigned int gup_flags,
--                                struct page **pages,
--                                struct vm_area_struct **vmas) {
--                return 0;
-+            void conftest_get_user_pages() {
-+                get_user_pages(NULL, NULL, 0, 0, 0, NULL, NULL);
-             }" > conftest$$.c
- 
-             $CC $CFLAGS -c conftest$$.c > /dev/null 2>&1
-@@ -2761,7 +2751,7 @@ compile_test() {
-                                        struct mm_struct *mm,
-                                        unsigned long start,
-                                        unsigned long nr_pages,
--                                       unsigned int gpu_flags,
-+                                       int gpu_flags,
-                                        struct page **pages,
-                                        struct vm_area_struct **vmas) {
-                 return 0;
-@@ -2788,7 +2778,7 @@ compile_test() {
-                                        struct mm_struct *mm,
-                                        unsigned long start,
-                                        unsigned long nr_pages,
--                                       unsigned int gup_flags,
-+                                       int gup_flags,
-                                        struct page **pages,
-                                        struct vm_area_struct **vmas,
-                                        int *locked) {
-@@ -2813,7 +2803,7 @@ compile_test() {
-             long get_user_pages_remote(struct mm_struct *mm,
-                                        unsigned long start,
-                                        unsigned long nr_pages,
--                                       unsigned int gup_flags,
-+                                       int gup_flags,
-                                        struct page **pages,
-                                        struct vm_area_struct **vmas,
-                                        int *locked) {
-@@ -4051,7 +4041,9 @@ compile_test() {
-             #
-             CODE="
-             #include <linux/mm.h>
--            vm_fault_t conftest_vm_fault_t;
-+            void test_vm_fault_t() {
-+                vm_fault_t conftest_vm_fault_t;
-+            }
-             "
-             compile_check_conftest "$CODE" "NV_VM_FAULT_T_IS_PRESENT" "" "types"
-         ;;
 diff --git a/nvidia/src/nvidia-drm/Makefile b/nvidia/src/nvidia-drm/Makefile
 new file mode 100644
-index 00000000000..8eadf25a083
+index 00000000000..c39097320c2
 --- /dev/null
 +++ b/nvidia/src/nvidia-drm/Makefile
-@@ -0,0 +1,250 @@
+@@ -0,0 +1,373 @@
 +# Build NVIDIA DRM components using the linuxkpi
 +# inspired by the linuxkpi makefile
 +#
 +# Austin Shafer - 2019
 +
-+SRCS += \
-+	bus_if.h \
-+        device_if.h \
-+        pci_if.h \
++GENERATED_KMOD_SRCS += device_if.h \
 +        vnode_if.h \
-+        usb_if.h \
-+        opt_usb.h \
-+	opt_compat.h \
-+	opt_drm.h \
-+	opt_syscons.h \
-+        opt_stack.h
++        bus_if.h \
++        pci_if.h \
++        pci_iov_if.h \
++        device_if.h \
++        iicbus_if.h \
++        opt_teken.h \
++        opt_splash.h \
++        opt_syscons.h \
++        opt_drm.h \
++        opt_vm.h \
++        opt_syscons.h
++SRCS += ${GENERATED_KMOD_SRCS}
 +
 +SRCS += \
 +	nvidia-drm-conftest.h \
@@ -238,7 +69,6 @@ index 00000000000..8eadf25a083
 +	nvidia-drm-fence.h \
 +	nvidia-drm-priv.h \
 +	nvidia-drm-utils.h \
-+	nv-pci-table.h \
 +	nvidia-drm.h
 +
 +SRCS += \
@@ -257,9 +87,8 @@ index 00000000000..8eadf25a083
 +	nvidia-drm-modeset.c \
 +	nvidia-drm-fence.c \
 +	nvidia-drm-utils.c \
-+	nv-pci-table.c \
++	../nvidia/nv-kthread-q.c \
 +	nvidia-drm.c
-+
 +
 +KMOD = nvidia-drm
 +
@@ -280,10 +109,11 @@ index 00000000000..8eadf25a083
 +# to workaround dma-buf-map.h
 +CFLAGS += -Wno-error=pointer-arith
 +
-+# make sure /usr/include is before all the other includes
-+#CFLAGS = "-I/usr/include/ $CFLAGS"
++# FreeBSD's uint64_t on amd64 is not unsigned long long like NvU64 is, use this to have
++# us use the real uint64_t so it matches
++CFLAGS += -DNVTYPES_USE_STDINT=1
 +
-+CFLAGS += -DNV_VERSION_STRING=\"530.00\"
++CFLAGS += -DNV_VERSION_STRING=\"550.00\"
 +
 +include ../common/optional-cflags.mk
 +
@@ -321,7 +151,7 @@ index 00000000000..8eadf25a083
 +# are available
 +
 +# to include conftest/headers.h
-+NV_CONFTEST_CFLAGS+=-I. -D_KERNEL -DKLD_MODULE -nostdinc -I/usr/src/sys -I/usr/src/sys/contrib/ck/include 
++NV_CONFTEST_CFLAGS+=-I. -D_KERNEL -DKLD_MODULE -I/usr/src/sys -I/usr/src/sys/contrib/ck/include 
 +
 +# Mark the linux version we support.
 +# This solves issues with things like ww_mutex_trylock, we will have
@@ -329,9 +159,122 @@ index 00000000000..8eadf25a083
 +.include "${DRMKMODDIR}/linuxkpi_version.mk"
 +NV_CONFTEST_CFLAGS += -DLINUXKPI_VERSION=${LINUXKPI_VERSION_NUMBER}
 +
-+conftest/headers.h: ${PWD}/conftest.sh ${DRMKMODDIR}
-+	mkdir -p conftest
-+	${PWD}/conftest.sh '${CC}' x86_64 ${DRMKMODDIR} this_arg_not_used_on_bsd test_kernel_headers '${NV_CONFTEST_CFLAGS}' > conftest/headers.h
++# Each of these headers is checked for presence with a test #include; a
++# corresponding #define will be generated in conftest/headers.h.
++NV_HEADER_PRESENCE_TESTS = \
++  asm/system.h \
++  drm/drmP.h \
++  drm/drm_aperture.h \
++  drm/drm_auth.h \
++  drm/drm_gem.h \
++  drm/drm_crtc.h \
++  drm/drm_color_mgmt.h \
++  drm/drm_atomic.h \
++  drm/drm_atomic_helper.h \
++  drm/drm_atomic_state_helper.h \
++  drm/drm_encoder.h \
++  drm/drm_atomic_uapi.h \
++  drm/drm_drv.h \
++  drm/drm_fbdev_generic.h \
++  drm/drm_framebuffer.h \
++  drm/drm_connector.h \
++  drm/drm_probe_helper.h \
++  drm/drm_blend.h \
++  drm/drm_fourcc.h \
++  drm/drm_prime.h \
++  drm/drm_plane.h \
++  drm/drm_vblank.h \
++  drm/drm_file.h \
++  drm/drm_ioctl.h \
++  drm/drm_device.h \
++  drm/drm_mode_config.h \
++  drm/drm_modeset_lock.h \
++  dt-bindings/interconnect/tegra_icc_id.h \
++  generated/autoconf.h \
++  generated/compile.h \
++  generated/utsrelease.h \
++  linux/efi.h \
++  linux/kconfig.h \
++  linux/platform/tegra/mc_utils.h \
++  linux/printk.h \
++  linux/ratelimit.h \
++  linux/prio_tree.h \
++  linux/log2.h \
++  linux/of.h \
++  linux/bug.h \
++  linux/sched.h \
++  linux/sched/mm.h \
++  linux/sched/signal.h \
++  linux/sched/task.h \
++  linux/sched/task_stack.h \
++  xen/ioemu.h \
++  linux/fence.h \
++  linux/dma-fence.h \
++  linux/dma-resv.h \
++  soc/tegra/chip-id.h \
++  soc/tegra/fuse.h \
++  soc/tegra/tegra_bpmp.h \
++  video/nv_internal.h \
++  linux/platform/tegra/dce/dce-client-ipc.h \
++  linux/nvhost.h \
++  linux/nvhost_t194.h \
++  linux/host1x-next.h \
++  asm/book3s/64/hash-64k.h \
++  asm/set_memory.h \
++  asm/prom.h \
++  asm/powernv.h \
++  linux/atomic.h \
++  asm/barrier.h \
++  asm/opal-api.h \
++  sound/hdaudio.h \
++  asm/pgtable_types.h \
++  asm/page.h \
++  linux/stringhash.h \
++  linux/dma-map-ops.h \
++  rdma/peer_mem.h \
++  sound/hda_codec.h \
++  linux/dma-buf.h \
++  linux/time.h \
++  linux/platform_device.h \
++  linux/mutex.h \
++  linux/reset.h \
++  linux/of_platform.h \
++  linux/of_device.h \
++  linux/of_gpio.h \
++  linux/gpio.h \
++  linux/gpio/consumer.h \
++  linux/interconnect.h \
++  linux/pm_runtime.h \
++  linux/clk.h \
++  linux/clk-provider.h \
++  linux/ioasid.h \
++  linux/stdarg.h \
++  linux/iosys-map.h \
++  asm/coco.h \
++  linux/vfio_pci_core.h \
++  linux/mdev.h \
++  soc/tegra/bpmp-abi.h \
++  soc/tegra/bpmp.h \
++  linux/sync_file.h \
++  linux/cc_platform.h \
++  asm/cpufeature.h
++
++.for HEADER in ${NV_HEADER_PRESENCE_TESTS}
++# Define a rule to check the header $(1).
++#
++# Depend on the headers generated by bsd.kmod.mk, without this the linuxkpi
++# files will fail to import and fail the presence test
++conftest/header_presence/${HEADER}.part: ${GENERATED_KMOD_SRCS} ${PWD}/conftest.sh ${DRMKMODDIR}
++	mkdir -p conftest/header_presence/${HEADER:H}
++	${PWD}/conftest.sh '${CC}' x86_64 ${DRMKMODDIR} this_arg_not_used_on_bsd test_kernel_header '${NV_CONFTEST_CFLAGS}' ${HEADER} > conftest/header_presence/${HEADER}.part
++
++conftest/headers.h: conftest/header_presence/${HEADER}.part
++
++.endfor
++
++# Concatenate all of the parts into headers.h.
++conftest/headers.h:
++	find conftest/header_presence/ -name "*.part" | xargs cat > conftest/headers.h
 +
 +NV_CONFTEST_GENERIC_COMPILE_TESTS += drm_available
 +NV_CONFTEST_GENERIC_COMPILE_TESTS += drm_atomic_available
@@ -375,9 +318,9 @@ index 00000000000..8eadf25a083
 +NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_fbdev_generic_setup
 +NV_CONFTEST_FUNCTION_COMPILE_TESTS += drm_connector_attach_hdr_output_metadata_property
 +
-+conftest/function.h: ${PWD}/conftest.sh ${DRMKMODDIR}
++conftest/functions.h: ${PWD}/conftest.sh ${DRMKMODDIR}
 +	mkdir -p conftest
-+	${PWD}/conftest.sh '${CC}' x86_64 ${DRMKMODDIR} this_arg_not_used_on_bsd compile_tests '${NV_CONFTEST_CFLAGS}' ${NV_CONFTEST_FUNCTION_COMPILE_TESTS} > conftest/function.h
++	${PWD}/conftest.sh '${CC}' x86_64 ${DRMKMODDIR} this_arg_not_used_on_bsd compile_tests '${NV_CONFTEST_CFLAGS}' ${NV_CONFTEST_FUNCTION_COMPILE_TESTS} > conftest/functions.h
 +
 +NV_CONFTEST_TYPE_COMPILE_TESTS += drm_bus_present
 +NV_CONFTEST_TYPE_COMPILE_TESTS += drm_bus_has_bus_type
@@ -436,11 +379,19 @@ index 00000000000..8eadf25a083
 +NV_CONFTEST_TYPE_COMPILE_TESTS += drm_aperture_remove_conflicting_pci_framebuffers_has_driver_arg
 +NV_CONFTEST_TYPE_COMPILE_TESTS += drm_mode_create_dp_colorspace_property_has_supported_colorspaces_arg
 +
-+conftest/type.h: ${PWD}/conftest.sh ${DRMKMODDIR}
++conftest/types.h: ${PWD}/conftest.sh ${DRMKMODDIR}
 +	mkdir -p conftest
-+	${PWD}/conftest.sh '${CC}' x86_64 ${DRMKMODDIR} this_arg_not_used_on_bsd compile_tests '${NV_CONFTEST_CFLAGS}' ${NV_CONFTEST_TYPE_COMPILE_TESTS} > conftest/type.h
++	${PWD}/conftest.sh '${CC}' x86_64 ${DRMKMODDIR} this_arg_not_used_on_bsd compile_tests '${NV_CONFTEST_CFLAGS}' ${NV_CONFTEST_TYPE_COMPILE_TESTS} > conftest/types.h
 +
-+CONFTEST_FILES = conftest/generic.h conftest/function.h conftest/type.h
++conftest/macros.h:
++	mkdir -p conftest
++	touch conftest/macros.h
++
++conftest/symbols.h:
++	mkdir -p conftest
++	touch conftest/symbols.h
++
++CONFTEST_FILES = conftest/generic.h conftest/functions.h conftest/types.h conftest/macros.h conftest/symbols.h
 +
 +${CONFTEST_FILES}: conftest/headers.h
 +
@@ -453,5 +404,5 @@ index 00000000000..8eadf25a083
 +.include <bsd.kmod.mk>
 +
 -- 
-2.41.0
+2.42.0
 
