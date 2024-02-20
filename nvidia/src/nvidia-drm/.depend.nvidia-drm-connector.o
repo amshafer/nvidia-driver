@@ -1,0 +1,329 @@
+nvidia-drm-connector.o: nvidia-drm-connector.c \
+  /usr/home/ashafer/git/nvidia-driver/nvidia/src/nvidia-drm/opt_global.h \
+  nvidia-drm-conftest.h conftest/type.h conftest/function.h \
+  conftest/generic.h conftest/headers.h /usr/include/sys/types.h \
+  /usr/include/sys/cdefs.h /usr/include/machine/endian.h \
+  /usr/include/x86/endian.h /usr/include/sys/_types.h \
+  /usr/include/machine/_types.h /usr/include/x86/_types.h \
+  /usr/include/machine/_limits.h /usr/include/x86/_limits.h \
+  /usr/include/sys/_endian.h /usr/include/sys/_pthreadtypes.h \
+  /usr/include/sys/_stdint.h /usr/include/sys/bitcount.h \
+  /usr/include/sys/select.h /usr/include/sys/_sigset.h \
+  /usr/include/sys/_timeval.h /usr/include/sys/timespec.h \
+  /usr/include/sys/_timespec.h /usr/include/sys/nv.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/ktime.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/types.h \
+  /usr/include/sys/param.h /usr/include/sys/_null.h \
+  /usr/include/sys/syslimits.h /usr/include/sys/errno.h \
+  /usr/include/sys/time.h /usr/include/sys/_clock_id.h \
+  /usr/include/sys/priority.h /usr/include/machine/param.h \
+  /usr/include/machine/_align.h /usr/include/x86/_align.h \
+  /usr/include/sys/systm.h /usr/include/sys/callout.h \
+  /usr/include/sys/_callout.h /usr/include/sys/queue.h \
+  /usr/include/sys/kassert.h /usr/include/sys/stdint.h \
+  /usr/include/machine/_stdint.h /usr/include/x86/_stdint.h \
+  /usr/include/machine/atomic.h /usr/include/sys/atomic_common.h \
+  /usr/include/machine/cpufunc.h /usr/include/sys/pcpu.h \
+  /usr/include/sys/_cpuset.h /usr/include/sys/_bitset.h \
+  /usr/include/sys/_lock.h /usr/include/sys/_mutex.h \
+  /usr/include/sys/_sx.h /usr/include/sys/_rmlock.h \
+  /usr/include/sys/resource.h /usr/include/machine/pcpu.h \
+  /usr/include/machine/_pmap.h /usr/include/machine/segments.h \
+  /usr/include/x86/segments.h /usr/include/machine/tss.h \
+  /usr/include/machine/pcpu_aux.h /usr/include/sys/kpilite.h \
+  /usr/include/sys/libkern.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/compiler.h \
+  /usr/src/sys/compat/linuxkpi/common/include/asm/types.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/time.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/math64.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/jiffies.h \
+  /usr/include/sys/kernel.h /usr/include/sys/linker_set.h \
+  /usr/include/sys/tslog.h /usr/include/sys/limits.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/stringify.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/rbtree.h \
+  /usr/include/sys/stddef.h /usr/include/sys/tree.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_gem.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/kref.h \
+  /usr/include/sys/refcount.h \
+  /home/ashafer/git/drm-kmod/linuxkpi/bsd/include/linux/kernel.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/kernel.h \
+  /usr/include/sys/stat.h /usr/include/sys/smp.h \
+  /usr/include/sys/cpuset.h /usr/include/sys/bitset.h \
+  /usr/include/sys/syslog.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/bitops.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/build_bug.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/container_of.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/stddef.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/errno.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/sched.h \
+  /usr/include/sys/proc.h /usr/include/sys/event.h \
+  /usr/include/sys/_eventhandler.h /usr/include/sys/condvar.h \
+  /usr/include/sys/lock_profile.h /usr/include/sys/osd.h \
+  /usr/include/sys/rtprio.h /usr/include/sys/runq.h \
+  /usr/include/machine/runq.h /usr/include/sys/sigio.h \
+  /usr/include/sys/signal.h /usr/include/machine/signal.h \
+  /usr/include/x86/signal.h /usr/include/sys/signalvar.h \
+  /usr/include/sys/ucontext.h /usr/include/machine/ucontext.h \
+  /usr/include/x86/ucontext.h /usr/include/sys/_ucontext.h \
+  /usr/include/sys/ucred.h /usr/include/bsm/audit.h \
+  /usr/include/sys/_domainset.h /usr/include/machine/proc.h \
+  /usr/include/machine/pcb.h /usr/include/machine/fpu.h \
+  /usr/include/x86/fpu.h /usr/include/machine/cpu.h \
+  /usr/include/machine/psl.h /usr/include/x86/psl.h \
+  /usr/include/machine/frame.h /usr/include/x86/frame.h \
+  /usr/include/sys/sched.h /usr/include/sys/sleepqueue.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/bitmap.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/slab.h \
+  /usr/include/sys/malloc.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/compat.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/gfp.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/page.h \
+  /usr/include/sys/vmmeter.h /usr/include/sys/counter.h \
+  /usr/include/machine/counter.h /usr/include/sys/domainset.h \
+  /usr/include/vm/vm.h /usr/include/machine/vm.h \
+  /usr/include/machine/specialreg.h /usr/include/x86/specialreg.h \
+  /usr/include/vm/vm_page.h /usr/include/vm/pmap.h \
+  /usr/include/machine/pmap.h /usr/include/sys/_pctrie.h \
+  /usr/include/sys/_pv_entry.h /usr/include/sys/_rangeset.h \
+  /usr/include/sys/_smr.h /usr/include/vm/_vm_radix.h \
+  /usr/include/vm/_vm_phys.h /usr/include/machine/vmparam.h \
+  /usr/include/machine/md_var.h /usr/include/x86/x86_var.h \
+  /usr/include/vm/vm_param.h /usr/include/vm/vm_object.h \
+  /usr/include/sys/_blockcount.h /usr/include/sys/_rwlock.h \
+  /usr/include/vm/vm_extern.h /usr/include/vm/vm_kern.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/llist.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/overflow.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/completion.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/hrtimer.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/timer.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/mm_types.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/rwsem.h \
+  /usr/include/sys/lock.h /usr/include/sys/ktr_class.h \
+  /usr/include/sys/sx.h /usr/include/sys/lockstat.h \
+  /usr/include/sys/sdt.h \
+  /usr/src/sys/compat/linuxkpi/common/include/asm/atomic.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/pid.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/string.h \
+  /usr/include/sys/ctype.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/uaccess.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/err.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/stdarg.h \
+  /usr/include/machine/stdarg.h /usr/include/x86/stdarg.h \
+  /usr/include/sys/_stdarg.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/spinlock.h \
+  /usr/include/sys/mutex.h /usr/include/sys/kdb.h \
+  /usr/include/machine/setjmp.h /usr/include/x86/setjmp.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/rwlock.h \
+  /usr/include/sys/rwlock.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/bottom_half.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/lockdep.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/sched/mm.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/typecheck.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/log2.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/kconfig.h \
+  /usr/src/sys/compat/linuxkpi/common/include/asm/byteorder.h \
+  /usr/include/sys/endian.h \
+  /usr/src/sys/compat/linuxkpi/common/include/asm/cpufeature.h \
+  /usr/src/sys/compat/linuxkpi/common/include/asm/processor.h \
+  /usr/src/sys/compat/linuxkpi/common/include/asm/uaccess.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/mutex.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/list.h \
+  /usr/include/sys/jail.h /usr/include/sys/sysctl.h \
+  /usr/include/sys/_task.h /usr/include/sys/vnode.h \
+  /usr/include/sys/bufobj.h /usr/include/sys/lockmgr.h \
+  /usr/include/sys/_lockmgr.h /usr/include/sys/rangelock.h \
+  /usr/include/sys/selinfo.h /usr/include/sys/uio.h \
+  /usr/include/sys/_iovec.h /usr/include/sys/_uio.h \
+  /usr/include/sys/acl.h /usr/include/vm/uma.h /usr/include/sys/ktr.h \
+  /usr/include/sys/_seqc.h vnode_if.h vnode_if_typedef.h \
+  vnode_if_newproto.h /usr/include/sys/conf.h /usr/include/sys/socket.h \
+  /usr/include/sys/_sockaddr_storage.h /usr/include/sys/mbuf.h \
+  /usr/include/net/bpf.h /usr/include/sys/ck.h \
+  /usr/src/sys/contrib/ck/include/ck_queue.h \
+  /usr/src/sys/contrib/ck/include/ck_pr.h \
+  /usr/src/sys/contrib/ck/include/ck_cc.h \
+  /usr/src/sys/contrib/ck/include/gcc/ck_cc.h \
+  /usr/src/sys/contrib/ck/include/ck_md.h \
+  /usr/src/sys/contrib/ck/include/ck_limits.h \
+  /usr/src/sys/contrib/ck/include/ck_stdint.h \
+  /usr/src/sys/contrib/ck/include/ck_stdbool.h \
+  /usr/src/sys/contrib/ck/include/gcc/x86_64/ck_pr.h \
+  /usr/src/sys/contrib/ck/include/gcc/x86_64/ck_f_pr.h \
+  /usr/src/sys/contrib/ck/include/gcc/ck_pr.h \
+  /usr/src/sys/contrib/ck/include/ck_epoch.h \
+  /usr/src/sys/contrib/ck/include/ck_stack.h \
+  /usr/src/sys/contrib/ck/include/ck_stddef.h /usr/include/net/dlt.h \
+  /usr/include/net/ethernet.h /usr/include/net/if.h \
+  /usr/include/net/if_var.h /usr/include/sys/buf_ring.h \
+  /usr/include/net/vnet.h /usr/include/sys/eventhandler.h \
+  /usr/include/sys/epoch.h /usr/include/net/altq/if_altq.h \
+  /usr/include/net/if_private.h /usr/include/net/ifq.h \
+  /usr/include/net/if_types.h /usr/include/net/if_media.h \
+  /usr/include/netinet/in.h /usr/include/netinet6/in6.h \
+  /usr/include/netinet/in_pcb.h /usr/include/net/route.h \
+  /usr/include/netinet/in_var.h /usr/include/sys/fnv_hash.h \
+  /usr/include/netinet6/in6_var.h /usr/include/netinet/tcp_lro.h \
+  /usr/include/netinet6/nd6.h /usr/include/net80211/ieee80211.h \
+  /usr/include/net80211/ieee80211_var.h \
+  /usr/include/net80211/ieee80211_freebsd.h /usr/include/sys/taskqueue.h \
+  /usr/include/net/debugnet.h /usr/include/net80211/_ieee80211.h \
+  /usr/include/net80211/ieee80211_ageq.h \
+  /usr/include/net80211/ieee80211_crypto.h \
+  /usr/include/net80211/ieee80211_dfs.h \
+  /usr/include/net80211/ieee80211_ioctl.h \
+  /usr/include/net80211/ieee80211_phy.h \
+  /usr/include/net80211/ieee80211_power.h \
+  /usr/include/net80211/ieee80211_node.h \
+  /usr/include/net80211/ieee80211_ht.h \
+  /usr/include/net80211/ieee80211_proto.h \
+  /usr/include/net80211/ieee80211_radiotap.h \
+  /usr/include/net80211/ieee80211_scan.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/refcount.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/atomic.h \
+  /usr/src/sys/compat/linuxkpi/common/include/asm/atomic64.h \
+  /usr/src/sys/compat/linuxkpi/common/include/asm/atomic-long.h \
+  /usr/src/sys/compat/linuxkpi/common/include/asm/barrier.h \
+  /home/ashafer/git/drm-kmod/linuxkpi/gplv2/include/linux/dma-resv.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/ww_mutex.h \
+  /home/ashafer/git/drm-kmod/linuxkpi/bsd/include/linux/dma-fence.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/wait.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/printk.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/rcupdate.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/seqlock.h \
+  /usr/include/sys/seqc.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/preempt.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/hardirq.h \
+  /usr/include/sys/bus.h /usr/include/machine/_bus.h \
+  /usr/include/sys/_bus_dma.h /usr/include/sys/ioccom.h \
+  /usr/include/sys/kobj.h /usr/include/sys/devctl.h device_if.h bus_if.h \
+  /usr/include/sys/interrupt.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/xarray.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/radix-tree.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_vma_manager.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_mm.h \
+  /usr/src/sys/compat/linuxkpi/dummy/include/linux/bug.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_print.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/seq_file.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/fs.h \
+  /usr/include/sys/file.h /usr/include/sys/filedesc.h \
+  /usr/include/sys/caprights.h /usr/include/sys/smr_types.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/semaphore.h \
+  /usr/include/sys/sema.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/dcache.h \
+  /usr/src/sys/fs/pseudofs/pseudofs.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/capability.h \
+  /usr/include/sys/priv.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/wait_bit.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/string_helpers.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/device.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/kobject.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/workqueue.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/sysfs.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/mm.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/pfn.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/mmap_lock.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/shrinker.h \
+  /usr/src/sys/compat/linuxkpi/common/include/asm/pgtable.h \
+  /home/ashafer/git/drm-kmod/linuxkpi/bsd/include/linux/module.h \
+  /usr/include/sys/module.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/module.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/kmod.h \
+  /usr/include/sys/syscallsubr.h /usr/include/sys/mac.h \
+  /usr/include/sys/mount.h /usr/include/sys/sbuf.h \
+  /home/ashafer/git/drm-kmod/linuxkpi/bsd/include/linux/moduleparam.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/export.h \
+  /usr/include/sys/linker.h /usr/include/machine/elf.h \
+  /usr/include/x86/elf.h /usr/include/sys/elf32.h \
+  /usr/include/sys/elf_common.h /usr/include/sys/elf64.h \
+  /usr/include/sys/elf_generic.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/kdev_t.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/backlight.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/notifier.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/pm.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/idr.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/ratelimit.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/fwnode.h \
+  /usr/include/sys/backlight.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/debugfs.h \
+  /home/ashafer/git/drm-kmod/include/uapi/drm/drm.h \
+  /home/ashafer/git/drm-kmod/drivers/gpu/drm/drm_os_freebsd.h \
+  /usr/include/sys/fbio.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/mod_devicetable.h \
+  /home/ashafer/git/drm-kmod/linuxkpi/gplv2/include/linux/fb.h \
+  /home/ashafer/git/drm-kmod/linuxkpi/bsd/include/uapi/linux/fb.h \
+  /usr/src/sys/compat/linuxkpi/dummy/include/linux/init.h \
+  /home/ashafer/git/drm-kmod/linuxkpi/gplv2/include/linux/pci.h \
+  /usr/include/machine/bus.h /usr/include/x86/bus.h \
+  /usr/include/machine/bus_dma.h /usr/include/x86/bus_dma.h \
+  /usr/include/sys/bus_dma.h /usr/include/x86/busdma_impl.h \
+  /usr/include/sys/rman.h /usr/include/machine/resource.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/pci.h \
+  /usr/include/sys/pciio.h /usr/src/sys/dev/pci/pcivar.h pci_if.h \
+  /usr/include/dev/pci/pcireg.h /usr/src/sys/dev/pci/pci_private.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/dmapool.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/io.h \
+  /usr/src/sys/compat/linuxkpi/common/include/asm/set_memory.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/scatterlist.h \
+  /usr/include/sys/sf_buf.h /usr/include/machine/sf_buf.h \
+  /home/ashafer/git/drm-kmod/linuxkpi/bsd/include/linux/dma-mapping.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/dma-mapping.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/dma-attrs.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/sizes.h \
+  /usr/src/sys/vm/uma_align_mask.h \
+  /usr/src/sys/compat/linuxkpi/common/include/asm/memtype.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/pci_ids.h \
+  /usr/src/sys/compat/linuxkpi/common/include/asm/io.h \
+  /home/ashafer/git/drm-kmod/include/uapi/drm/drm_mode.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_encoder.h \
+  /usr/src/sys/compat/linuxkpi/dummy/include/linux/ctype.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_crtc.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/i2c.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/hdmi.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/media-bus-format.h \
+  /home/ashafer/git/drm-kmod/include/uapi/drm/drm_fourcc.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_modeset_lock.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_rect.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_mode_object.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_lease.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_device.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_hashtab.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_mode_config.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_file.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_prime.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_framebuffer.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_fourcc.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_modes.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_connector.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_util.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/interrupt.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/cpu.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/irqreturn.h \
+  /usr/src/sys/compat/linuxkpi/dummy/include/linux/kgdb.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/smp.h \
+  /usr/src/sys/compat/linuxkpi/common/include/asm/smp.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/jump_label.h \
+  /usr/src/sys/compat/linuxkpi/common/include/asm/fpu/api.h \
+  /usr/src/sys/compat/linuxkpi/common/include/linux/kthread.h \
+  /usr/include/sys/kthread.h /usr/include/sys/unistd.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_property.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_edid.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_plane.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_color_mgmt.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_blend.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_debugfs_crc.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_auth.h \
+  ../common/inc/nv-mm.h /usr/include/vm/vm_phys.h nvidia-drm-helper.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_drv.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_atomic.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_atomic_helper.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_modeset_helper_vtables.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_modeset_helper.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_atomic_state_helper.h \
+  nvidia-drm-priv.h nvidia-drm-os-interface.h ../common/inc/nvtypes.h \
+  ../common/inc/cpuopsys.h ../common/inc/nvkms-kapi.h \
+  ../common/inc/nv-gpu-info.h ../common/inc/nvkms-api-types.h \
+  ../common/inc/nvmisc.h ../common/inc/nvlimits.h \
+  ../common/inc/nvkms-format.h nvidia-drm-connector.h nvidia-drm-crtc.h \
+  nvidia-drm-utils.h nvidia-drm-encoder.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_probe_helper.h \
+  /home/ashafer/git/drm-kmod/include/drm/drm_crtc_helper.h
